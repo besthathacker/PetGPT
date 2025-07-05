@@ -2,22 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PetGPT - GPT-2 Web Chat</title>
+  <title>PetGPT Ultimate</title>
   <style>
-    html, body {
-      margin: 0; padding: 0;
-      background: #1e1e1e;
-      color: white;
+    body {
       font-family: Arial, sans-serif;
-      height: 100%;
+      background-color: #1e1e1e;
+      color: white;
+      margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
+      height: 100vh;
     }
-    header {
-      background: #007acc;
-      padding: 16px;
+    header, footer {
+      background-color: #007acc;
       text-align: center;
-      font-size: 22px;
+      padding: 14px;
+      font-size: 20px;
     }
     #chat {
       flex: 1;
@@ -27,7 +28,7 @@
     }
     .message {
       margin: 6px 0;
-      padding: 8px 12px;
+      padding: 8px;
       border-radius: 6px;
       max-width: 75%;
       word-wrap: break-word;
@@ -42,180 +43,188 @@
     }
     #userInput {
       flex: 1;
-      padding: 10px;
+      padding: 8px;
       border: none;
       border-radius: 4px;
       background: #333;
       color: #eee;
     }
     button {
-      margin-left: 8px;
-      padding: 10px 16px;
+      margin-left: 6px;
+      padding: 8px 12px;
       border: none;
       border-radius: 4px;
       background: #007acc;
-      color: white;
+      color: #fff;
       cursor: pointer;
     }
     #adminPanel {
-      display: none;
-      background: #222;
+      display: none; /* Hidden by default */
+      background: #333;
       padding: 10px;
       border-top: 2px solid #007acc;
     }
-    #adminPanel h4, #adminPanel label { margin: 6px 0; }
+    #adminPanel h4, #adminPanel label {
+      margin: 6px 0;
+    }
   </style>
 </head>
 <body>
-  <header>🐾 PetGPT (GPT-2 AI)</header>
+  <header>🐾 PetGPT Ultimate</header>
+
   <div id="chat"></div>
+
   <div id="controls">
     <input id="userInput" placeholder="Type your message..." autocomplete="off" />
     <button id="sendBtn">Send</button>
     <button id="resetBtn">Reset</button>
-    <button id="voiceBtn">🎤</button>
+    <button id="voiceBtn">🎤 Voice</button>
   </div>
+
   <div id="adminPanel">
-    <h4>Admin Panel (type “cheeto”)</h4>
-    <label>Background: <input type="color" id="bgPicker" /></label>
+    <h4>Admin Panel (say/type “cheeto”)</h4>
+    <label>Background Color: <input type="color" id="bgPicker" /></label>
   </div>
+
+  <footer>Made with ❤️ | PetGPT Ultimate</footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0/dist/transformers.min.js"></script>
   <script>
-    let tokenizer, model, gptReady = false;
-    const chat = document.getElementById('chat');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const adminPanel = document.getElementById('adminPanel');
-    const bgPicker = document.getElementById('bgPicker');
-    let memory = JSON.parse(localStorage.getItem('petgpt-memory') || '{}');
+    (async () => {
+      let tokenizer, model;
+      let gptReady = false;
+      const chat = document.getElementById('chat');
+      const userInput = document.getElementById('userInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const voiceBtn = document.getElementById('voiceBtn');
+      const adminPanel = document.getElementById('adminPanel');
+      const bgPicker = document.getElementById('bgPicker');
 
-    function append(msg, cls) {
-      const d = document.createElement('div');
-      d.className = 'message ' + cls;
-      d.textContent = msg;
-      chat.appendChild(d);
-      chat.scrollTop = chat.scrollHeight;
-    }
+      let memory = JSON.parse(localStorage.getItem('petgpt-memory') || '{}');
 
-    function saveMem() {
-      localStorage.setItem('petgpt-memory', JSON.stringify(memory));
-    }
+      function append(msg, cls) {
+        const d = document.createElement('div');
+        d.className = 'message ' + cls;
+        d.textContent = msg;
+        chat.appendChild(d);
+        chat.scrollTop = chat.scrollHeight;
+      }
 
-    async function getReply(text) {
-      const t = text.toLowerCase();
+      function saveMem() {
+        localStorage.setItem('petgpt-memory', JSON.stringify(memory));
+      }
 
-      if (t.startsWith('remember:')) {
-        const [k, v] = t.slice(9).split('=').map(s => s.trim());
-        if (k && v) {
-          memory[k] = v;
-          saveMem();
-          return `Got it! I'll remember ${k} = ${v}`;
+      async function getReply(text) {
+        const t = text.toLowerCase();
+
+        if (t.startsWith('remember:')) {
+          const [k, v] = t.slice(9).split('=').map(s => s.trim());
+          if (k && v) {
+            memory[k] = v;
+            saveMem();
+            return `Got it! I'll remember ${k} = ${v}`;
+          }
+          return `Use: remember:key=value`;
         }
-        return `Use: remember:key=value`;
+
+        for (let k in memory) {
+          if (t.includes(k.toLowerCase())) return `You told me ${k} = ${memory[k]}`;
+        }
+
+        if (t.includes('cheeto')) {
+          adminPanel.style.display = 'block';
+          return "Admin panel unlocked!";
+        }
+
+        if (gptReady && model && tokenizer) {
+          try {
+            const encoded = await tokenizer.encode(text);
+            const output = await model.generate(encoded.inputIds, {
+              max_new_tokens: 50,
+              do_sample: true,
+              temperature: 0.7,
+              top_p: 0.9,
+            });
+            let decoded = await tokenizer.decode(output[0]);
+            let reply = decoded.replace(text, '').trim();
+            return reply.length > 0 ? reply : "Hmm, I don't know what to say.";
+          } catch (e) {
+            console.error("GPT-2 error:", e);
+          }
+        }
+
+        return "Sorry, I don't understand.";
       }
 
-      for (let k in memory) {
-        if (t.includes(k.toLowerCase())) return `You told me ${k} = ${memory[k]}`;
-      }
-
-      if (t.includes('cheeto')) {
-        adminPanel.style.display = 'block';
-        return "Admin panel unlocked!";
-      }
-
-      if (gptReady && tokenizer && model) {
+      async function sendMessage() {
+        const txt = userInput.value.trim();
+        if (!txt) return;
+        append("You: " + txt, 'user');
+        userInput.value = '';
+        userInput.disabled = true;
+        sendBtn.disabled = true;
         try {
-          const encoded = await tokenizer.encode(text);
-          const output = await model.generate(encoded.inputIds, {
-            max_new_tokens: 50,
-            temperature: 0.8,
-            top_p: 0.9
-          });
-          const decoded = await tokenizer.decode(output[0]);
-          return decoded.replace(text, '').trim() || "(no reply)";
+          const reply = await getReply(txt);
+          append("PetGPT: " + reply, 'bot');
         } catch (e) {
-          console.error("GPT-2 error:", e);
-          return "Something went wrong with GPT-2.";
+          append("PetGPT: Error occurred.", 'bot');
+        } finally {
+          userInput.disabled = false;
+          sendBtn.disabled = false;
+          userInput.focus();
         }
       }
 
-      return "I don't understand that yet.";
-    }
-
-    async function sendMessage() {
-      const txt = userInput.value.trim();
-      if (!txt) return;
-      append("You: " + txt, 'user');
-      userInput.value = '';
-      userInput.disabled = true;
-      sendBtn.disabled = true;
-
-      const reply = await getReply(txt);
-      append("PetGPT: " + reply, 'bot');
-
-      userInput.disabled = false;
-      sendBtn.disabled = false;
-      userInput.focus();
-    }
-
-    sendBtn.onclick = sendMessage;
-    userInput.onkeydown = e => {
-      if (e.key === 'Enter') sendMessage();
-    };
-
-    resetBtn.onclick = () => {
-      if (confirm("Clear chat and memory?")) {
-        chat.innerHTML = '';
-        memory = {};
-        localStorage.clear();
-      }
-    };
-
-    bgPicker.oninput = e => document.body.style.background = e.target.value;
-
-    // Voice recognition
-    let recognition, recognizing = false;
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SR = window.webkitSpeechRecognition || window.SpeechRecognition;
-      recognition = new SR();
-      recognition.lang = 'en-US';
-      recognition.interimResults = false;
-      recognition.continuous = false;
-
-      recognition.onstart = () => { recognizing = true; voiceBtn.textContent = '🛑'; };
-      recognition.onend = () => { recognizing = false; voiceBtn.textContent = '🎤'; };
-      recognition.onresult = e => {
-        const t = e.results[0][0].transcript;
-        userInput.value = t;
-        sendMessage();
-      };
-    }
-
-    voiceBtn.onclick = () => {
-      if (!recognition) return alert('Voice recognition not supported.');
-      recognizing ? recognition.stop() : recognition.start();
-    };
-
-    // Load GPT-2
-    append("Loading GPT-2 AI...", "bot");
-    window.transformers
-      .AutoTokenizer.fromPretrained("gpt2")
-      .then(tk => {
-        tokenizer = tk;
-        return window.transformers.AutoModelForCausalLM.fromPretrained("gpt2");
-      })
-      .then(m => {
-        model = m;
-        gptReady = true;
-        append("GPT-2 model ready! 🎉", "bot");
-      })
-      .catch(err => {
-        append("Failed to load GPT-2. Fallback only.", "bot");
-        console.error(err);
+      sendBtn.onclick = sendMessage;
+      userInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          sendMessage();
+        }
       });
+
+      resetBtn.onclick = () => {
+        if (confirm("Clear all memory?")) {
+          localStorage.clear();
+          memory = {};
+          chat.innerHTML = '';
+          append("Memory cleared.", "bot");
+        }
+      };
+
+      bgPicker.oninput = e => document.body.style.background = e.target.value;
+
+      // Voice chat
+      let recognition;
+      if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SR();
+        recognition.lang = 'en-US';
+        recognition.onresult = e => {
+          userInput.value = e.results[0][0].transcript;
+          sendMessage();
+        };
+      }
+      voiceBtn.onclick = () => {
+        if (!recognition) return alert("Not supported.");
+        recognition.start();
+      };
+
+      // Load GPT-2 model
+      append("Loading GPT-2 AI model...", "bot");
+      try {
+        tokenizer = await window.transformers.AutoTokenizer.fromPretrained("gpt2");
+        model = await window.transformers.AutoModelForCausalLM.fromPretrained("gpt2");
+        gptReady = true;
+        append("GPT-2 AI model loaded! Ready to chat!", "bot");
+      } catch (e) {
+        append("GPT-2 failed to load.", "bot");
+        console.error("Load error:", e);
+      }
+
+      userInput.focus();
+    })();
   </script>
 </body>
 </html>
