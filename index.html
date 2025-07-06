@@ -157,7 +157,7 @@
   bgPicker.addEventListener('input', e => {
     document.body.style.background = e.target.value;
   });
-  appendMessage("Loading GPT-2... Please wait.", "bot");
+  appendMessage("Loading GPT-2 XL AI model... Please wait.", "bot");
   window.onload = async () => {
     const { pipeline } = window.transformers;
     generator = await pipeline('text-generation', 'Xenova/gpt2-xl');
