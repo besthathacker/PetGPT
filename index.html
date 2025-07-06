@@ -343,18 +343,35 @@ async function getReply(text) {
   appendMessage(`🎮 You chose ${user}, PetGPT chose ${bot}. ${result}`, 'bot');
 }
 
-  document.getElementById('arModeToggle').addEventListener('change', function () {
-    if (this.checked) {
-      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.autoplay = true;
-        video.style.width = "100%";
-        appendMessage("📷 AR Mode enabled. Camera activated.", 'bot');
-        document.body.appendChild(video);
-      }).catch(() => appendMessage("Camera access denied or not available.", 'bot'));
-    }
-  });
+  let arStream = null;
+let arVideo = null;
+
+document.getElementById('arModeToggle').addEventListener('change', function () {
+  if (this.checked) {
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      arStream = stream;
+
+      arVideo = document.createElement('video');
+      arVideo.srcObject = stream;
+      arVideo.autoplay = true;
+      arVideo.style.width = "100%";
+      arVideo.id = "arVideo";
+
+      document.body.appendChild(arVideo);
+      appendMessage("📷 AR Mode enabled. Camera activated.", 'bot');
+    }).catch(() => appendMessage("Camera access denied or not available.", 'bot'));
+  } else {
+    if (arStream) {
+      arStream.getTracks().forEach(track => track.stop());
+      arStream = null;
+    }
+    if (arVideo) {
+      arVideo.remove();
+      arVideo = null;
+    }
+    appendMessage("📷 AR Mode disabled.", 'bot');
+  }
+});
 
   let personality = 'friendly';
   document.getElementById('personalitySelect').onchange = e => {
