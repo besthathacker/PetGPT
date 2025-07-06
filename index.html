@@ -188,9 +188,9 @@
 
   // 🧠 Use GPT-2 to respond, optionally with web info
   async function getReply(text) {
-    const prompt = SYSTEM_PROMPT + text + "\nPetGPT:";
+    const prompt = SYSTEM_PROMPT = text
     const output = await generator(prompt, { max_new_tokens: 100 });
-    let response = output[0].generated_text.slice(prompt.length).trim();
+    let response = output[0].generated_text.trim();
 
     // Trigger instant answer for some questions
     const lower = text.toLowerCase();
