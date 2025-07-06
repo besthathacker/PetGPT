@@ -170,129 +170,75 @@
   const SYSTEM_PROMPT = "You are a friendly helpful assistant. Please reply to the user’s message concisely and politely.\n\n";
 
 async function performDuckDuckGoInstantAnswer(query) {
-  try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-    const res = await fetch(url);
-    const data = await res.json();
+  try {
+    // Direct fetch without proxy (may cause CORS issues in some browsers)
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
 
-    if (data.Abstract) {
-      return "📘 Web Answer: " + data.Abstract;
-    } else if (data.RelatedTopics?.[0]?.Text) {
-      return "📘 Web Info: " + data.RelatedTopics[0].Text;
-  } else {
-    return "No useful web result found.";
-    }
-  } catch (err) {
-    return "🌐 Web search failed.";
-  }
+    if (data.Abstract) {
+      return "📘 Web Answer: " + data.Abstract;
+    } else if (data.RelatedTopics?.[0]?.Text) {
+      return "📘 Web Info: " + data.RelatedTopics[0].Text;
+    } else {
+      return "No useful web result found.";
+    }
+  } catch (err) {
+    console.error('Web search error:', err);
+    return "🌐 Web search failed or blocked by CORS policy.";
+  }
 }
   
 async function getReply(text) {
-  const prompt = text;
-  const output = await generator(prompt, { max_new_tokens: 100 });
-  let response = output[0].generated_text.trim();
+  // Your existing logic for memory and dictionary...
 
-  // Detect if it's a question
-  const lower = text.toLowerCase();
-  const needsInstantAnswer = /\?$/.test(lower) || /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(lower);
+  // Example snippet for question detection & web search
+  const lower = text.toLowerCase();
+  const needsInstantAnswer = /\?$/.test(lower) || /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(lower);
 
-  if (needsInstantAnswer && response.length < 100) {
-    const instantAnswer = await performDuckDuckGoInstantAnswer(text);
-    response += "\n\n" + instantAnswer;
-  }
-    const t = text.toLowerCase().trim();
+  let response = ""; // initialize
 
-    // Check for memory commands
-    if (t.startsWith('remember:')) {
-      const parts = t.slice(9).split('=');
-      if (parts.length === 2) {
-        const k = parts[0].trim();
-        const v = parts[1].trim();
-        if (k && v) {
-          memory[k] = v;
-          saveMemory();
-          return `Got it! I'll remember ${k} = ${v}`;
-        }
-      }
-      return 'Use: remember:key=value';
-    }
-
-    if (t.startsWith('forget:')) {
-      const k = t.slice(7).trim();
-      if (memory[k]) {
-        delete memory[k];
-        saveMemory();
-        return `Forgot ${k}.`;
-      }
-      return `I don't remember ${k}.`;
-    }
-
-    for (const k in memory) {
-      if (t.includes(k.toLowerCase())) {
-        return `You told me ${k} = ${memory[k]}`;
-      }
-    }
-
-    if (t.includes('cheeto')) {
-      adminPanel.style.display = 'block';
-      adminPanel.setAttribute('aria-hidden', 'false');
-      return "Admin unlocked!";
-    }
-
-    for (const key in extendedDictionary) {
-      if (t.includes(key)) return extendedDictionary[key];
-    }
-
-    if (gptReady && generator) {
-      try {
-        const fullPrompt = SYSTEM_PROMPT + text;
-        const output = await generator(fullPrompt, {
-          max_new_tokens: 80,
-          temperature: 0.3,       
-          top_p: 0.85,            
-          repetition_penalty: 1.2 
-        });
-
-        let generated = output[0].generated_text;
-        let reply = generated.slice(fullPrompt.length).trim();
-
-        // fallback if GPT-2 output is weird
-        if (!reply || reply.toLowerCase().startsWith(text.toLowerCase())) {
-          reply = "Sorry, I didn't quite understand that. Can you try rephrasing?";
-        }
-
-        return reply;
-      } catch (e) {
-        console.error('GPT-2 generation error:', e);
-        return "Sorry, something went wrong with the AI.";
-      }
-    }
-
-    return "Sorry, I can't respond right now.";
+  if (gptReady && generator) {
+    // Generate the basic GPT response
+    const output = await generator(text, { max_new_tokens: 100 });
+    response = output[0].generated_text.trim();
   }
 
-  async function sendMessage() {
-    const txt = userInput.value.trim();
-    if (!txt) return;
-
-    appendMessage("You: " + txt, 'user');
-    userInput.value = '';
-    userInput.disabled = true;
-    sendBtn.disabled = true;
-
-    try {
-      const reply = await getReply(txt);
-      appendMessage("PetGPT: " + applyPersonality(reply), 'bot');
-    } catch (err) {
-      appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
-      console.error(err);
-    } finally {
-      userInput.disabled = false;
-      sendBtn.disabled = false;
-      userInput.focus();
-    }
+  // If question detected, append web search info if GPT response is short or repeats question
+  if (needsInstantAnswer && (!response || response.length < 100 || response.toLowerCase().includes(text.toLowerCase()))) {
+    const instantAnswer = await performDuckDuckGoInstantAnswer(text);
+    response += "\n\n" + instantAnswer;
   }
 
+  // Return combined response
+  return response || "Sorry, I can't respond right now.";
+}
+
+// Your message sending code:
+
+async function sendMessage() {
+  const txt = userInput.value.trim();
+  if (!txt) return;
+
+  appendMessage("You: " + txt, 'user');
+  userInput.value = '';
+  userInput.disabled = true;
+  sendBtn.disabled = true;
+
+  try {
+    const reply = await getReply(txt);
+    appendMessage("PetGPT: " + applyPersonality(reply), 'bot');
+  } catch (err) {
+    appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
+    console.error(err);
+  } finally {
+    userInput.disabled = false;
+    sendBtn.disabled = false;
+    userInput.focus();
+  }
+}
+  
   sendBtn.addEventListener('click', sendMessage);
   userInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
