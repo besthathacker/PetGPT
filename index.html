@@ -203,11 +203,9 @@
       PetGPT: Hi there! How can I help you today?
 
       User: How do I make cookies?
-      PetGPT: Making cookies is easy! First, preheat your oven to 350°F. Then...
+      PetGPT: Making cookies is easy! First, preheat your oven to 350°F. Then...`
 
-      User: `;
-      (webInfo ? `Web search says: ${webInfo}\n\n` : "") +
-      `User: ${text}\nAssistant:`;
+      (webInfo ? `Web search says: ${webInfo}\n\n` : "") + `User: ${text}\nAssistant:`;
 
     const result = await generator(prompt, { max_new_tokens: 80 });
     return result[0].generated_text.slice(prompt.length).trim();
