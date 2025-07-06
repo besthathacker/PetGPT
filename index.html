@@ -247,10 +247,10 @@ async function getReply(text) {
       try {
         const fullPrompt = SYSTEM_PROMPT + text;
         const output = await generator(fullPrompt, {
-          max_new_tokens: 60,
-          temperature: 0.7,
-          top_p: 0.9,
-          repetition_penalty: 1.1,
+          max_new_tokens: 80,
+          temperature: 0.3,       
+          top_p: 0.85,            
+          repetition_penalty: 1.2 
         });
 
         let generated = output[0].generated_text;
