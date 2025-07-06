@@ -3,96 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <title>PetGPT Ultimate</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.10.0/dist/transformers.min.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0;
-      font-family: sans-serif;
-      background: #111; color: #eee;
-      height: 100vh; display: flex;
-      flex-direction: column;
+      margin: 0;
+      padding: 0;
+      background-color: #111;
+      color: #eee;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #222;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
     }
     header, footer {
-      background: #222; padding: 1rem; text-align: center;
+      text-align: center;
+      padding: 10px;
     }
-    main {
-      flex: 1; padding: 1rem;
-      display: flex; flex-direction: column;
-      max-width: 600px; margin: auto;
+    h1 {
+      margin: 0;
+      font-size: 2em;
     }
-    #chat { flex: 1; overflow-y: auto; margin-bottom: 1rem; }
-    .bot, .user {
-      margin: 0.5rem 0;
-      padding: 0.75rem;
+    #chatbox {
+      height: 400px;
+      overflow-y: auto;
+      background: #000;
+      padding: 10px;
       border-radius: 8px;
+      margin-bottom: 10px;
     }
-    .bot { background: #333; }
-    .user { background: #007acc; color: white; text-align: right; }
+    #chatbox div {
+      margin: 5px 0;
+    }
     input, button {
-      padding: 0.75rem;
+      font-size: 16px;
+      padding: 10px;
+      margin-right: 10px;
       border: none;
-      border-radius: 5px;
-      margin-right: 0.5rem;
+      border-radius: 6px;
     }
-    #inputBar { display: flex; }
-    input { flex: 1; background: #222; color: white; }
-    button { background: #007acc; color: white; }
+    input {
+      width: 60%;
+    }
+    button {
+      background: #09f;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #555;
+    }
   </style>
 </head>
 <body>
-  <header><h1>PetGPT Ultimate</h1></header>
-  <main>
-    <div id="chat"></div>
-    <div id="inputBar">
-      <input id="userInput" placeholder="Type something...">
-      <button id="sendBtn">Send</button>
-    </div>
-  </main>
-  <footer>© 2025 PetGPT</footer>
+  <div class="container">
+    <header><h1>PetGPT Ultimate</h1></header>
+    <div id="chatbox"><div><em>Loading GPT-2 model...</em></div></div>
+    <input type="text" id="userInput" placeholder="Type your message..." disabled>
+    <button id="sendButton" disabled>Send</button>
+    <footer><p>&copy; 2025 PetGPT Ultimate</p></footer>
+  </div>
 
-  <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.3/dist/transformers.esm.js';
+  <script>
+    let pipeline, modelReady = false;
 
-    const chat = document.getElementById('chat');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-
-    let generator;
-
-    function append(text, className) {
-      const msg = document.createElement('div');
-      msg.className = className;
-      msg.textContent = text;
-      chat.appendChild(msg);
-      chat.scrollTop = chat.scrollHeight;
+    async function loadModel() {
+      try {
+        pipeline = await window.transformers.pipeline('text-generation', 'Xenova/gpt2');
+        modelReady = true;
+        document.getElementById("userInput").disabled = false;
+        document.getElementById("sendButton").disabled = false;
+        document.getElementById("chatbox").innerHTML = "<div><em>GPT-2 is ready. Say something!</em></div>";
+      } catch (e) {
+        document.getElementById("chatbox").innerHTML = "<div style='color: red;'>❌ GPT-2 failed to load.</div>";
+        console.error(e);
+      }
     }
 
-    sendBtn.onclick = async () => {
-      const text = userInput.value.trim();
-      if (!text) return;
-      append(text, 'user');
-      userInput.value = '';
-      append('...', 'bot');
+    loadModel();
+
+    document.getElementById("sendButton").addEventListener("click", async () => {
+      if (!modelReady) return;
+
+      const input = document.getElementById("userInput");
+      const message = input.value.trim();
+      if (!message) return;
+
+      const chatbox = document.getElementById("chatbox");
+      chatbox.innerHTML += `<div><strong>You:</strong> ${message}</div>`;
+      input.value = "";
+
+      chatbox.innerHTML += `<div><em>PetGPT is thinking...</em></div>`;
+      chatbox.scrollTop = chatbox.scrollHeight;
 
       try {
-        const out = await generator(text, { max_new_tokens: 40 });
-        chat.lastChild.textContent = out[0].generated_text.slice(text.length).trim();
+        const output = await pipeline(message, { max_new_tokens: 50 });
+        const response = output[0]?.generated_text?.replace(message, "").trim() || "(No response)";
+        chatbox.innerHTML += `<div><strong>PetGPT:</strong> ${response}</div>`;
       } catch (e) {
-        chat.lastChild.textContent = '❌ Error: ' + e.message;
+        chatbox.innerHTML += `<div style='color:red;'>Error generating response</div>`;
+        console.error(e);
       }
-    };
 
-    // Load GPT-2
-    (async () => {
-      append('🤖 Loading GPT-2...', 'bot');
-      try {
-        generator = await pipeline('text-generation', 'Xenova/gpt2');
-        append('✅ Ready!', 'bot');
-      } catch (err) {
-        append('❌ Failed to load GPT-2', 'bot');
-        console.error(err);
-      }
-    })();
+      chatbox.scrollTop = chatbox.scrollHeight;
+    });
   </script>
 </body>
 </html>
