@@ -315,18 +315,33 @@ async function getReply(text) {
     }
   })();
   function playRPS() {
-    const choices = ["Rock", "Paper", "Scissors"];
-    const user = prompt("Rock, Paper, or Scissors?");
-    if (!user) return;
-    const bot = choices[Math.floor(Math.random() * 3)];
-    let result = "";
-    if (user === bot) result = "It's a draw!";
-    else if ((user === "Rock" && bot === "Scissors") ||
-             (user === "Paper" && bot === "Rock") ||
-             (user === "Scissors" && bot === "Paper")) result = "You win!";
-    else result = "PetGPT wins!";
-    appendMessage(`🎮 You chose ${user}, PetGPT chose ${bot}. ${result}`, 'bot');
+  const choices = ["rock", "paper", "scissors"];
+  const userInput = prompt("Rock, Paper, or Scissors?");
+  if (!userInput) return;
+
+  const user = userInput.trim().toLowerCase();
+  const bot = choices[Math.floor(Math.random() * 3)];
+  let result = "";
+
+  if (!choices.includes(user)) {
+    appendMessage("❓ Invalid choice. Please enter rock, paper, or scissors.", 'bot');
+    return;
   }
+
+  if (user === bot) {
+    result = "It's a draw!";
+  } else if (
+    (user === "rock" && bot === "scissors") ||
+    (user === "paper" && bot === "rock") ||
+    (user === "scissors" && bot === "paper")
+  ) {
+    result = "You win!";
+  } else {
+    result = "PetGPT wins!";
+  }
+
+  appendMessage(`🎮 You chose ${user}, PetGPT chose ${bot}. ${result}`, 'bot');
+}
 
   document.getElementById('arModeToggle').addEventListener('change', function () {
     if (this.checked) {
