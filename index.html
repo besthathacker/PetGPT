@@ -194,7 +194,7 @@
 
   // ⚡ Load model
   appendMessage("Loading GPT-2 Medium model, please wait...", 'bot');
-  const pipe = await pipeline('text-generation', 'Xenova/gpt2-medium');
+  const pipe = await pipeline('text-generation', 'Xenova/gpt2');
   generator = pipe;
   appendMessage("PetGPT is ready! Ask me anything.", 'bot');
 </script>
