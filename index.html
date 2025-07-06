@@ -190,26 +190,24 @@
   async function getReply(text) {
     const prompt = SYSTEM_PROMPT + text + "\nPetGPT:";
     const output = await generator(prompt, { max_new_tokens: 100 });
-    return output[0].generated_text.slice(prompt.length).trim();
-    let webInfo = "";
-    if (shouldSearch(text)) {
-      appendMessage("Searching the web...", "bot");
-      webInfo = await webSearch(text);
-    }
+    let response = output[0].generated_text.slice(prompt.length).trim();
 
-    const SYSTEM_PROMPT = `The following is a conversation with an AI assistant named PetGPT. The assistant is helpful, creative, and friendly.
+    // Prevent echo
+    if (response.toLowerCase().startsWith(text.toLowerCase())) {
+      response = response.slice(text.length).trim() || "Hmm, can you rephrase that?";
+    }
 
-      User: Hello
-      PetGPT: Hi there! How can I help you today?
+    // Trigger instant answer for some questions
+    const lower = text.toLowerCase();
+    const needsInstantAnswer = lower.startsWith("how") || lower.startsWith("what") || lower.startsWith("who");
 
-      User: How do I make cookies?
-      PetGPT: Making cookies is easy! First, preheat your oven to 350°F. Then...`
+    if (needsInstantAnswer && response.length < 50) {
+     const instantAnswer = await performDuckDuckGoInstantAnswer(text);
+      response += "\n\n" + instantAnswer;
+    }
 
-      (webInfo ? `Web search says: ${webInfo}\n\n` : "") + `User: ${text}\nAssistant:`;
-
-    const result = await generator(prompt, { max_new_tokens: 80 });
-    return result[0].generated_text.slice(prompt.length).trim();
-  }
+    return response;
+  }
 
   // 🧾 Message sending logic
   async function sendMessage() {
