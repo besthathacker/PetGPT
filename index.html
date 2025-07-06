@@ -109,6 +109,7 @@
   <button id="sendBtn" aria-label="Send message" type="button">Send</button>
   <button id="voiceBtn" aria-label="Voice input" type="button">🎤</button>
   <button id="speakToggleBtn" aria-label="Toggle speech" type="button">🔈 Speak: ON</button>
+  <input type="file" id="fileUpload" aria-label="Upload file" />
 </div>
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
@@ -127,6 +128,29 @@
   const bgPicker = document.getElementById('bgPicker');
   let speakEnabled = true; // speech enabled by default
   const speakToggleBtn = document.getElementById('speakToggleBtn');
+  const fileUpload = document.getElementById('fileUpload');
+
+  fileUpload.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      const buffer = new Uint8Array(e.target.result);
+      let hex = '';
+      for (let i = 0; i < Math.min(buffer.length, 512); i++) {
+        hex += buffer[i].toString(16).padStart(2, '0') + ' ';
+        if ((i + 1) % 16 === 0) hex += '\n';
+      }
+
+      const fileInfo = `📁 Uploaded: ${file.name} (${file.size} bytes)\nType: ${file.type || "unknown"}\n\nHex preview:\n${hex}`;
+      appendMessage(fileInfo, 'user');
+    };
+
+    reader.readAsArrayBuffer(file);
+    fileUpload.value = ''; // Reset input so same file can be reuploaded
+  });
  
   let generator;
   
