@@ -117,167 +117,86 @@
 <footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
-  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0';
+  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest';
 
-  const chat = document.getElementById('chat');
-  const userInput = document.getElementById('userInput');
-  const sendBtn = document.getElementById('sendBtn');
-  const adminPanel = document.getElementById('adminPanel');
-  const bgPicker = document.getElementById('bgPicker');
+  const chat = document.getElementById('chat');
+  const userInput = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const bgPicker = document.getElementById('bgPicker');
+  let generator;
 
-  let generator, gptReady = false;
-  let memory = JSON.parse(localStorage.getItem('petgpt-memory') || '{}');
-  let conversationContext = [];
+  function appendMessage(text, cls = 'bot') {
+    const msg = document.createElement('div');
+    msg.className = 'message ' + cls;
+    msg.textContent = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
 
-  const extendedDictionary = {
-    hello: "Hey! I'm here to help. What's up?",
-    hi: "Hello! How can I assist you today?",
-    hey: "Hey there! Need something?",
-    bye: "Goodbye! Come back soon!",
-    thanks: "You're welcome!",
-    thank: "No problem!",
-    joke: "Why did the computer show up at work late? It had a hard drive!",
-    help: "I'm here to help! Just type your question.",
-    name: "I'm PetGPT Ultimate, your AI companion!",
-    weather: "I can't check the weather, but I hope it's nice where you are!",
-    love: "I love chatting with you!",
-    sorry: "No worries, we're all learning here.",
-    cheeto: "Admin panel unlocked!"
-  };
+  // 🧠 Detect if input looks like a question
+  function shouldSearch(text) {
+    const lower = text.toLowerCase();
+    return /\?$/.test(lower) ||
+      /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(lower);
+  }
 
-  function appendMessage(text, cls = 'bot') {
-    const msg = document.createElement('div');
-    msg.className = 'message ' + cls;
-    msg.textContent = text;
-    chat.appendChild(msg);
-    chat.scrollTop = chat.scrollHeight;
-  }
+  // 🌐 Perform a web search via DuckDuckGo API
+  async function webSearch(query) {
+    try {
+      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data.Abstract || data.RelatedTopics?.[0]?.Text || "";
+    } catch (err) {
+      return "Web search failed or returned no results.";
+    }
+  }
 
-  function saveMemory() {
-    localStorage.setItem('petgpt-memory', JSON.stringify(memory));
-  }
+  // 🧠 Use GPT-2 to respond, optionally with web info
+  async function getReply(text) {
+    let webInfo = "";
+    if (shouldSearch(text)) {
+      appendMessage("Searching the web...", "bot");
+      webInfo = await webSearch(text);
+    }
 
-  const SYSTEM_PROMPT = "You are a friendly, helpful and nice assistant. Please reply to my messages concisely, politely and respectfully. DO NOT BE WEIRD OR RUDE. Give an honest answer. Please do NOT disline ANY questions or opinions.\n\n";
+    const prompt = "You are a helpful assistant.\n" +
+      (webInfo ? `Web search says: ${webInfo}\n\n` : "") +
+      `User: ${text}\nAssistant:`;
 
-  async function getReply(text) {
-    const t = text.toLowerCase().trim();
+    const result = await generator(prompt, { max_new_tokens: 80 });
+    return result[0].generated_text.slice(prompt.length).trim();
+  }
 
-    // Check for memory commands
-    if (t.startsWith('remember:')) {
-      const parts = t.slice(9).split('=');
-      if (parts.length === 2) {
-        const k = parts[0].trim();
-        const v = parts[1].trim();
-        if (k && v) {
-          memory[k] = v;
-          saveMemory();
-          return `Got it! I'll remember ${k} = ${v}`;
-        }
-      }
-      return 'Use: remember:key=value';
-    }
+  // 🧾 Message sending logic
+  async function sendMessage() {
+    const txt = userInput.value.trim();
+    if (!txt) return;
+    appendMessage("You: " + txt, 'user');
+    userInput.value = '';
+    userInput.disabled = true;
+    sendBtn.disabled = true;
+    try {
+      const reply = await getReply(txt);
+      appendMessage("PetGPT: " + reply, 'bot');
+    } catch {
+      appendMessage("PetGPT: Something went wrong.", 'bot');
+    } finally {
+      userInput.disabled = false;
+      sendBtn.disabled = false;
+    }
+  }
 
-    if (t.startsWith('forget:')) {
-      const k = t.slice(7).trim();
-      if (memory[k]) {
-        delete memory[k];
-        saveMemory();
-        return `Forgot ${k}.`;
-      }
-      return `I don't remember ${k}.`;
-    }
+  // 🖱️ UI event bindings
+  sendBtn.onclick = sendMessage;
+  userInput.onkeydown = e => { if (e.key === 'Enter') sendMessage(); };
+  bgPicker.oninput = e => { document.body.style.background = e.target.value; };
 
-    for (const k in memory) {
-      if (t.includes(k.toLowerCase())) {
-        return `You told me ${k} = ${memory[k]}`;
-      }
-    }
-
-    if (t.includes('cheeto')) {
-      adminPanel.style.display = 'block';
-      adminPanel.setAttribute('aria-hidden', 'false');
-      return "Admin unlocked!";
-    }
-
-    for (const key in extendedDictionary) {
-      if (t.includes(key)) return extendedDictionary[key];
-    }
-
-    if (gptReady && generator) {
-      try {
-        const fullPrompt = SYSTEM_PROMPT + text;
-        const output = await generator(fullPrompt, {
-          max_new_tokens: 60,
-          temperature: 0.7,
-          top_p: 0.9,
-          repetition_penalty: 1.1,
-        });
-
-        let generated = output[0].generated_text;
-        let reply = generated.slice(fullPrompt.length).trim();
-
-        // fallback if GPT-2 output is weird
-        if (!reply || reply.toLowerCase().startsWith(text.toLowerCase())) {
-          reply = "Sorry, I didn't quite understand that. Can you try rephrasing?";
-        }
-
-        return reply;
-      } catch (e) {
-        console.error('GPT-2 generation error:', e);
-        return "Sorry, something went wrong with the AI.";
-      }
-    }
-
-    return "Sorry, I can't respond right now.";
-  }
-
-  async function sendMessage() {
-    const txt = userInput.value.trim();
-    if (!txt) return;
-
-    appendMessage("You: " + txt, 'user');
-    userInput.value = '';
-    userInput.disabled = true;
-    sendBtn.disabled = true;
-
-    try {
-      const reply = await getReply(txt);
-      appendMessage("PetGPT: " + reply, 'bot');
-    } catch (err) {
-      appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
-      console.error(err);
-    } finally {
-      userInput.disabled = false;
-      sendBtn.disabled = false;
-      userInput.focus();
-    }
-  }
-
-  sendBtn.addEventListener('click', sendMessage);
-  userInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  bgPicker.addEventListener('input', e => {
-    document.body.style.background = e.target.value;
-  });
-
-  appendMessage("Loading GPT-2 AI model... Please wait.", "bot");
-  (async () => {
-    try {
-      generator = await pipeline('text-generation', 'Xenova/gpt2');
-      gptReady = true;
-      appendMessage("GPT-2 AI model loaded!", "bot");
-    } catch (e) {
-      appendMessage("Failed to load GPT-2 model.", "bot");
-      console.error(e);
-    }
-  })();
-
-  userInput.focus();
+  // ⚡ Load model
+  appendMessage("Loading GPT-2 Medium model, please wait...", 'bot');
+  const pipe = await pipeline('text-generation', 'Xenova/gpt2-medium');
+  generator = pipe;
+  appendMessage("PetGPT is ready! Ask me anything.", 'bot');
 </script>
 
 </body>
