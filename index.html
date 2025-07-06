@@ -197,16 +197,17 @@
       webInfo = await webSearch(text);
     }
 
-    const prompt = `The following is a conversation with an AI assistant named PetGPT. The assistant is helpful, creative, and friendly.
+    const SYSTEM_PROMPT = `The following is a conversation with an AI assistant named PetGPT. The assistant is helpful, creative, and friendly.
+
       User: Hello
       PetGPT: Hi there! How can I help you today?
 
       User: How do I make cookies?
       PetGPT: Making cookies is easy! First, preheat your oven to 350°F. Then...
 
-      User: `; +
-      (webInfo ? `Web search says: ${webInfo}\n\n` : "") +
-      `User: ${text}\nAssistant:`;
+      User: `;
+      (webInfo ? `Web search says: ${webInfo}\n\n` : "") +
+      `User: ${text}\nAssistant:`;
 
     const result = await generator(prompt, { max_new_tokens: 80 });
     return result[0].generated_text.slice(prompt.length).trim();
