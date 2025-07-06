@@ -130,17 +130,7 @@
   const speakToggleBtn = document.getElementById('speakToggleBtn');
   const fileUpload = document.getElementById('fileUpload');
   const voiceBtn = document.getElementById('voiceBtn');
-
-  const SYSTEM_PROMPT = `The following is a helpful and friendly assistant named PetGPT. It can answer questions, explain things, and perform web searches when needed.
-
-User: Hello
-PetGPT: Hi there! How can I assist you today?
-
-User: How do I make pancakes?
-PetGPT: To make pancakes, you'll need flour, eggs, milk, and a little baking powder...
-
-User: `;
-
+  
   fileUpload.addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -203,14 +193,9 @@ User: `;
   }
 
   async function getReply(text) {
-    const prompt = SYSTEM_PROMPT + text + "\nPetGPT:";
+    const prompt = SYSTEM_PROMPT = text;
     const output = await generator(prompt, { max_new_tokens: 100 });
     let response = output[0].generated_text.slice(prompt.length).trim();
-
-    if (response.toLowerCase().startsWith(text.toLowerCase())) {
-      response = response.slice(text.length).trim() || "Hmm, can you rephrase that?";
-    }
-
     const lower = text.toLowerCase();
     const needsInstantAnswer = shouldSearch(text) && response.length < 50;
 
@@ -218,11 +203,7 @@ User: `;
       const instantAnswer = await performDuckDuckGoInstantAnswer(text);
       response += "\n\n" + instantAnswer;
     }
-
-    // Fallback for very short or empty responses
-    if (!response || response.length < 3) {
-      response = "Hi! How can I assist you today?";
-    }
+    
 
     return response;
   }
