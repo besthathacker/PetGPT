@@ -108,6 +108,7 @@
   <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
   <button id="sendBtn" aria-label="Send message" type="button">Send</button>
   <button id="voiceBtn" aria-label="Voice input" type="button">🎤</button>
+  <button id="speakToggleBtn" aria-label="Toggle speech" type="button">🔈 Speak: ON</button>
 </div>
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
@@ -124,7 +125,15 @@
   const userInput = document.getElementById('userInput');
   const sendBtn = document.getElementById('sendBtn');
   const bgPicker = document.getElementById('bgPicker');
-  let generator;
+  let speakEnabled = true; // speech enabled by default
+  const speakToggleBtn = document.getElementById('speakToggleBtn');
+ 
+  let generator;
+  
+  speakToggleBtn.onclick = () => {
+    speakEnabled = !speakEnabled;
+    speakToggleBtn.textContent = speakEnabled ? '🔈 Speak: ON' : '🔇 Speak: OFF';
+  };  
 
   function appendMessage(text, cls = 'bot') {
     const msg = document.createElement('div');
@@ -180,7 +189,9 @@
     try {
       const reply = await getReply(txt);
       appendMessage("PetGPT: " + reply, 'bot');
-      speak(reply);
+      if (speakEnabled) {
+        speak(reply);
+      }
     } catch {
       appendMessage("PetGPT: Something went wrong.", 'bot');
     } finally {
