@@ -105,168 +105,280 @@
 <div id="chat" aria-live="polite" aria-label="Chat messages"></div>
 
 <div id="controls">
-  <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
-  <button id="sendBtn" aria-label="Send message" type="button">Send</button>
-  <button id="voiceBtn" aria-label="Voice input" type="button">🎤</button>
-  <button id="speakToggleBtn" aria-label="Toggle speech" type="button">🔈 Speak: ON</button>
-  <input type="file" id="fileUpload" aria-label="Upload file" />
+  <input type="text" id="userInput" placeholder="Say something..." />
+  <button id="sendBtn" oneclick="sendMessage()">send</button>
+  
+  <div id="publicFeatures">
+    <button onclick="playRPS()">🪨📄✂️ RPS</button>
+    <button onclick="dailyFortune()">🔮 Fortune</button>
+    <label><input type="checkbox" id="arModeToggle" /> 📷 AR Mode</label>
+    <select id="personalitySelect">
+      <option value="friendly">😊 Friendly</option>
+      <option value="funny">🤣 Funny</option>
+      <option value="roasty">🔥 Roasty</option>
+    </select>
+  </div>
 </div>
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
   <h4>Admin Panel (unlock with "cheeto")</h4>
-  <label>Background Color: <input type="color" id="bgPicker" aria-label="Background color picker" /></label>
 </div>
 
 <footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
-  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest';
+  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0';
 
-  const chat = document.getElementById('chat');
-  const userInput = document.getElementById('userInput');
-  const sendBtn = document.getElementById('sendBtn');
-  const bgPicker = document.getElementById('bgPicker');
-  let speakEnabled = true; // speech enabled by default
-  const speakToggleBtn = document.getElementById('speakToggleBtn');
-  const fileUpload = document.getElementById('fileUpload');
+  const chat = document.getElementById('chat');
+  const userInput = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const adminPanel = document.getElementById('adminPanel');
+  const bgPicker = document.getElementById('bgPicker');
 
-  fileUpload.addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  let generator, gptReady = false;
+  let memory = JSON.parse(localStorage.getItem('petgpt-memory') || '{}');
+  let conversationContext = [];
 
-    const reader = new FileReader();
+  const extendedDictionary = {
+    hello: "Hey! I'm here to help. What's up?",
+    hi: "Hello! How can I assist you today?",
+    hey: "Hey there! Need something?",
+    bye: "Goodbye! Come back soon!",
+    thanks: "You're welcome!",
+    thank: "No problem!",
+    joke: "Why did the computer show up at work late? It had a hard drive!",
+    help: "I'm here to help! Just type your question.",
+    name: "I'm PetGPT Ultimate, your AI companion!",
+    weather: "I can't check the weather, but I hope it's nice where you are!",
+    love: "I love chatting with you!",
+    sorry: "No worries, we're all learning here.",
+    cheeto: "Admin panel unlocked!"
+  };
 
-    reader.onload = function(e) {
-      const buffer = new Uint8Array(e.target.result);
-      let hex = '';
-      for (let i = 0; i < Math.min(buffer.length, 512); i++) {
-        hex += buffer[i].toString(16).padStart(2, '0') + ' ';
-        if ((i + 1) % 16 === 0) hex += '\n';
-      }
-
-      const fileInfo = `📁 Uploaded: ${file.name} (${file.size} bytes)\nType: ${file.type || "unknown"}\n\nHex preview:\n${hex}`;
-      appendMessage(fileInfo, 'user');
-    };
-
-    reader.readAsArrayBuffer(file);
-    fileUpload.value = ''; // Reset input so same file can be reuploaded
-  });
- 
-  let generator;
-  
-  speakToggleBtn.onclick = () => {
-    speakEnabled = !speakEnabled;
-    speakToggleBtn.textContent = speakEnabled ? '🔈 Speak: ON' : '🔇 Speak: OFF';
-  };  
-
-  function appendMessage(text, cls = 'bot') {
-    const msg = document.createElement('div');
-    msg.className = 'message ' + cls;
-    msg.textContent = text;
-    chat.appendChild(msg);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  // 🧠 Detect if input looks like a question
-  function shouldSearch(text) {
-    const lower = text.toLowerCase();
-    return /\?$/.test(lower) ||
-      /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(lower);
-  }
-
-  // 🌐 Perform a web search via DuckDuckGo API
-  async function webSearch(query) {
-    try {
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-      const res = await fetch(url);
-      const data = await res.json();
-      return data.Abstract || data.RelatedTopics?.[0]?.Text || "";
-    } catch (err) {
-      return "Web search failed or returned no results.";
-    }
-  }
-
-  // 🧠 Use GPT-2 to respond, optionally with web info
-  async function getReply(text) {
-    const prompt = SYSTEM_PROMPT = text
-    const output = await generator(prompt, { max_new_tokens: 100 });
-    let response = output[0].generated_text.trim();
-
-    // Trigger instant answer for some questions
-    const lower = text.toLowerCase();
-    const needsInstantAnswer = lower.startsWith("how") || lower.startsWith("what") || lower.startsWith("who");
-
-    if (needsInstantAnswer && response.length < 50) {
-     const instantAnswer = await performDuckDuckGoInstantAnswer(text);
-      response += "\n\n" + instantAnswer;
-    }
-
-    return response;
+  function appendMessage(text, cls = 'bot') {
+    const msg = document.createElement('div');
+    msg.className = 'message ' + cls;
+    msg.textContent = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
   }
 
-  // 🧾 Message sending logic
-  async function sendMessage() {
-    const txt = userInput.value.trim();
-    if (!txt) return;
-    appendMessage("You: " + txt, 'user');
-    userInput.value = '';
-    userInput.disabled = true;
-    sendBtn.disabled = true;
-    try {
-      const reply = await getReply(txt);
-      appendMessage("PetGPT: " + reply, 'bot');
-      if (speakEnabled) {
-        speak(reply);
-      }
-    } catch {
-      appendMessage("PetGPT: Something went wrong.", 'bot');
-    } finally {
-      userInput.disabled = false;
-      sendBtn.disabled = false;
-    }
-  }
+  function saveMemory() {
+    localStorage.setItem('petgpt-memory', JSON.stringify(memory));
+  }
 
-  // 🖱️ UI event bindings
-  sendBtn.onclick = sendMessage;
-  userInput.onkeydown = e => { if (e.key === 'Enter') sendMessage(); };
-  bgPicker.oninput = e => { document.body.style.background = e.target.value; };
+  const SYSTEM_PROMPT = "You are a friendly helpful assistant. Please reply to the user’s message concisely and politely.\n\n";
 
-  // ⚡ Load model
-  appendMessage("Loading PetGPT Ultimate, please wait...", 'bot');
-  const pipe = await pipeline('text-generation', 'Xenova/gpt2');
-  generator = pipe;
-  appendMessage("PetGPT is ready! Ask me anything.", 'bot');
-  const voiceBtn = document.getElementById('voiceBtn');
+async function performDuckDuckGoInstantAnswer(query) {
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}. &format=json&no_redirect=1&no_html=1`;
+    const res = await fetch(url);
+    const data = await res.json();
 
-  // 🗣️ Voice-to-text using Web Speech API
-  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  voiceBtn.onclick = () => {
-    recognition.start();
-    voiceBtn.textContent = '🎙️ Listening...';
-  };
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    userInput.value = transcript;
-    voiceBtn.textContent = '🎤';
-    sendMessage();
-  };
-
-  recognition.onerror = (event) => {
-    appendMessage("Voice error: " + event.error, 'bot');
-    voiceBtn.textContent = '🎤';
-  };
-
-  // 🔊 Text-to-speech for bot replies
-  function speak(text) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = speechSynthesis.getVoices().find(v => v.lang.startsWith('en'));
-    speechSynthesis.speak(utterance);
+    if (data.Abstract) {
+      return "📘 Web Answer: " + data.Abstract;
+    } else if (data.RelatedTopics?.[0]?.Text) {
+      return "📘 Web Info: " + data.RelatedTopics[0].Text;
+  } else {
+    return "No useful web result found.";
+    }
+  } catch (err) {
+    return "🌐 Web search failed.";
+  }
 }
+  
+async function getReply(text) {
+  const prompt = text;
+  const output = await generator(prompt, { max_new_tokens: 100 });
+  let response = output[0].generated_text.trim();
+
+  // Detect if it's a question
+  const lower = text.toLowerCase();
+  const needsInstantAnswer = /\?$/.test(lower) || /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(lower);
+
+  if (needsInstantAnswer && response.length < 100) {
+    const instantAnswer = await performDuckDuckGoInstantAnswer(text);
+    response += "\n\n" + instantAnswer;
+  }
+    const t = text.toLowerCase().trim();
+
+    // Check for memory commands
+    if (t.startsWith('remember:')) {
+      const parts = t.slice(9).split('=');
+      if (parts.length === 2) {
+        const k = parts[0].trim();
+        const v = parts[1].trim();
+        if (k && v) {
+          memory[k] = v;
+          saveMemory();
+          return `Got it! I'll remember ${k} = ${v}`;
+        }
+      }
+      return 'Use: remember:key=value';
+    }
+
+    if (t.startsWith('forget:')) {
+      const k = t.slice(7).trim();
+      if (memory[k]) {
+        delete memory[k];
+        saveMemory();
+        return `Forgot ${k}.`;
+      }
+      return `I don't remember ${k}.`;
+    }
+
+    for (const k in memory) {
+      if (t.includes(k.toLowerCase())) {
+        return `You told me ${k} = ${memory[k]}`;
+      }
+    }
+
+    if (t.includes('cheeto')) {
+      adminPanel.style.display = 'block';
+      adminPanel.setAttribute('aria-hidden', 'false');
+      return "Admin unlocked!";
+    }
+
+    for (const key in extendedDictionary) {
+      if (t.includes(key)) return extendedDictionary[key];
+    }
+
+    if (gptReady && generator) {
+      try {
+        const fullPrompt = SYSTEM_PROMPT + text;
+        const output = await generator(fullPrompt, {
+          max_new_tokens: 60,
+          temperature: 0.7,
+          top_p: 0.9,
+          repetition_penalty: 1.1,
+        });
+
+        let generated = output[0].generated_text;
+        let reply = generated.slice(fullPrompt.length).trim();
+
+        // fallback if GPT-2 output is weird
+        if (!reply || reply.toLowerCase().startsWith(text.toLowerCase())) {
+          reply = "Sorry, I didn't quite understand that. Can you try rephrasing?";
+        }
+
+        return reply;
+      } catch (e) {
+        console.error('GPT-2 generation error:', e);
+        return "Sorry, something went wrong with the AI.";
+      }
+    }
+
+    return "Sorry, I can't respond right now.";
+  }
+
+  async function sendMessage() {
+    const txt = userInput.value.trim();
+    if (!txt) return;
+
+    appendMessage("You: " + txt, 'user');
+    userInput.value = '';
+    userInput.disabled = true;
+    sendBtn.disabled = true;
+
+    try {
+      const reply = await getReply(txt);
+      appendMessage("PetGPT: " + applyPersonality(reply), 'bot');
+    } catch (err) {
+      appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
+      console.error(err);
+    } finally {
+      userInput.disabled = false;
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  userInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+
+  appendMessage("Loading PetGPT... Please wait.", "bot");
+  (async () => {
+    try {
+      generator = await pipeline('text-generation', 'Xenova/gpt2');
+      gptReady = true;
+      appendMessage("PetGPT is ready!", "bot");
+    } catch (e) {
+      appendMessage("Failed to load PetGPT.", "bot");
+      console.error(e);
+      applyThemeDay();
+    }
+  })();
+  function playRPS() {
+    const choices = ["Rock", "Paper", "Scissors"];
+    const user = prompt("Rock, Paper, or Scissors?");
+    if (!user) return;
+    const bot = choices[Math.floor(Math.random() * 3)];
+    let result = "";
+    if (user === bot) result = "It's a draw!";
+    else if ((user === "Rock" && bot === "Scissors") ||
+             (user === "Paper" && bot === "Rock") ||
+             (user === "Scissors" && bot === "Paper")) result = "You win!";
+    else result = "PetGPT wins!";
+    appendMessage(`🎮 You chose ${user}, PetGPT chose ${bot}. ${result}`, 'bot');
+  }
+
+  document.getElementById('arModeToggle').addEventListener('change', function () {
+    if (this.checked) {
+      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.style.width = "100%";
+        appendMessage("📷 AR Mode enabled. Camera activated.", 'bot');
+        document.body.appendChild(video);
+      }).catch(() => appendMessage("Camera access denied or not available.", 'bot'));
+    }
+  });
+
+  let personality = 'friendly';
+  document.getElementById('personalitySelect').onchange = e => {
+    personality = e.target.value;
+  };
+
+  function applyPersonality(text) {
+    if (personality === 'funny') return text + " 😂";
+    if (personality === 'roasty') return "🔥 Roasted: " + text;
+    return text;
+  }
+  function dailyFortune() {
+    const fortunes = [
+      "A great surprise is waiting for you!",
+      "Your curiosity will lead you to success.",
+      "Beware of unexpected messages.",
+      "A cat will bring you joy today.",
+      "Stay true to your path — it's working."
+    ];
+    const lucky = Math.floor(Math.random() * 100);
+    const sign = ["♈ Aries", "♉ Taurus", "♊ Gemini", "♋ Cancer", "♌ Leo", "♍ Virgo"][new Date().getDay()];
+    appendMessage(`🌠 Horoscope: ${sign}\n${fortunes[Math.floor(Math.random() * fortunes.length)]}\nLucky number: ${lucky}`, 'bot');
+  }
+  function applyThemeDay() {
+    const day = new Date().getDay();
+    const themes = {
+      1: "😺 Meow Monday: Expect cat puns!",
+      2: "🎮 Game Tuesday: Let's play!",
+      3: "🌱 Wisdom Wednesday: Ask me deep stuff.",
+      4: "🎨 Artsy Thursday: Share your creativity!",
+      5: "😜 Fun Friday: Silly PetGPT activated.",
+      6: "🌈 Chill Saturday: I'm relaxed.",
+      0: "💡 Smart Sunday: Big brain time!"
+    };
+    appendMessage(themes[day], 'bot');
+  }
+ window.playRPS = playRPS;
+ window.dailyFortune = dailyFortune;
+  userInput.focus(); 
 </script>
 
 </body>
