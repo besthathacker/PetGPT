@@ -193,7 +193,7 @@
   bgPicker.oninput = e => { document.body.style.background = e.target.value; };
 
   // ⚡ Load model
-  appendMessage("Loading GPT-2 Medium model, please wait...", 'bot');
+  appendMessage("Loading PetGPT Ultimate, please wait...", 'bot');
   const pipe = await pipeline('text-generation', 'Xenova/gpt2');
   generator = pipe;
   appendMessage("PetGPT is ready! Ask me anything.", 'bot');
