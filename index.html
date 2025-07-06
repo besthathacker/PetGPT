@@ -107,6 +107,7 @@
 <div id="controls">
   <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
   <button id="sendBtn" aria-label="Send message" type="button">Send</button>
+  <button id="voiceBtn" aria-label="Voice input" type="button">🎤</button>
 </div>
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
@@ -179,6 +180,7 @@
     try {
       const reply = await getReply(txt);
       appendMessage("PetGPT: " + reply, 'bot');
+      speak(reply);
     } catch {
       appendMessage("PetGPT: Something went wrong.", 'bot');
     } finally {
@@ -197,6 +199,37 @@
   const pipe = await pipeline('text-generation', 'Xenova/gpt2');
   generator = pipe;
   appendMessage("PetGPT is ready! Ask me anything.", 'bot');
+  const voiceBtn = document.getElementById('voiceBtn');
+
+  // 🗣️ Voice-to-text using Web Speech API
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  voiceBtn.onclick = () => {
+    recognition.start();
+    voiceBtn.textContent = '🎙️ Listening...';
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    userInput.value = transcript;
+    voiceBtn.textContent = '🎤';
+    sendMessage();
+  };
+
+  recognition.onerror = (event) => {
+    appendMessage("Voice error: " + event.error, 'bot');
+    voiceBtn.textContent = '🎤';
+  };
+
+  // 🔊 Text-to-speech for bot replies
+  function speak(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = speechSynthesis.getVoices().find(v => v.lang.startsWith('en'));
+    speechSynthesis.speak(utterance);
+}
 </script>
 
 </body>
