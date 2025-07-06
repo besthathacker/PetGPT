@@ -111,7 +111,7 @@
   <footer>© 2025 PetGPT Ultimate</footer>
 
   <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest';
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest/transformers.min.js';
     const chat = document.getElementById('chat');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -165,7 +165,7 @@
 
     appendMessage("Loading GPT-2 Large AI model... Please wait.", "bot");
     window.onload = async () => {
-      generator = await pipeline('text-generation', 'Xenova/gpt2-large');
+      generator = await pipeline('text-generation', 'gpt2-large');
       gptReady = true;
       appendMessage("GPT-2 Large AI model loaded!", "bot");
     };
