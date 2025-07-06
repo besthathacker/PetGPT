@@ -3,16 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PetGPT Ultimate</title>
+  <title>PetGPT with GPT-2 Medium</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; }
     html, body {
+      margin: 0;
+      padding: 0;
       height: 100%;
+      width: 100%;
+      font-family: Arial, sans-serif;
       background: #1e1e1e;
       color: white;
-      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
+    }
+    #main {
+      display: flex;
+      flex-direction: column;
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+      height: 100%;
     }
     header, footer {
       background: #007acc;
@@ -20,14 +31,6 @@
       text-align: center;
       font-size: 1.4rem;
       flex-shrink: 0;
-    }
-    #main {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: column;
-      max-width: 800px;
-      margin: 0 auto;
-      width: 100%;
     }
     #chat {
       flex: 1 1 auto;
@@ -37,7 +40,6 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      border-top: 2px solid #444;
     }
     .message {
       max-width: 75%;
@@ -45,17 +47,25 @@
       border-radius: 6px;
       word-wrap: break-word;
     }
-    .user { background: #3a3a3a; align-self: flex-end; }
-    .bot { background: #007acc; align-self: flex-start; }
+    .user {
+      background: #3a3a3a;
+      align-self: flex-end;
+    }
+    .bot {
+      background: #007acc;
+      align-self: flex-start;
+    }
     #controls {
+      flex-shrink: 0;
       background: #111;
       border-top: 1px solid #444;
       display: flex;
-      gap: 6px;
       padding: 10px;
+      gap: 6px;
+      align-items: center;
     }
     #userInput {
-      flex: 1 1 auto;
+      flex: 1;
       padding: 8px;
       border-radius: 4px;
       border: none;
@@ -71,7 +81,6 @@
       padding: 8px 12px;
       border-radius: 4px;
       cursor: pointer;
-      flex-shrink: 0;
     }
     button:disabled {
       opacity: 0.5;
@@ -86,41 +95,31 @@
       overflow-y: auto;
       max-height: 200px;
     }
-    #adminPanel h4 {
-      margin: 0.5rem 0 0.25rem 0;
-    }
-    #adminPanel label {
-      display: block;
-      margin-bottom: 0.75rem;
-    }
   </style>
 </head>
 <body>
-  <header>PetGPT Ultimate</header>
   <div id="main">
+    <header>PetGPT (GPT-2 Medium)</header>
     <div id="chat" aria-live="polite" aria-label="Chat messages"></div>
     <div id="controls">
-      <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
-      <button id="sendBtn" aria-label="Send message" type="button">Send</button>
+      <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" />
+      <button id="sendBtn">Send</button>
     </div>
-    <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
-      <h4>Admin Panel (unlock with "cheeto")</h4>
-      <label>Background Color: <input type="color" id="bgPicker" aria-label="Background color picker" /></label>
+    <div id="adminPanel" aria-hidden="true">
+      <h4>Admin Panel</h4>
+      <label>Background: <input type="color" id="bgPicker" /></label>
     </div>
+    <footer>© 2025 PetGPT</footer>
   </div>
-  <footer>© 2025 PetGPT Ultimate</footer>
 
   <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest/transformers.min.js';
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@latest';
+
     const chat = document.getElementById('chat');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
-    const adminPanel = document.getElementById('adminPanel');
     const bgPicker = document.getElementById('bgPicker');
-
-    let generator, gptReady = false;
-    let memory = JSON.parse(localStorage.getItem('petgpt-memory') || '{}');
-    const SYSTEM_PROMPT = "You are a friendly helpful assistant. Please reply to the user’s message concisely and politely.\n\n";
+    let generator;
 
     function appendMessage(text, cls = 'bot') {
       const msg = document.createElement('div');
@@ -131,9 +130,9 @@
     }
 
     async function getReply(text) {
-      const fullPrompt = SYSTEM_PROMPT + text;
-      const output = await generator(fullPrompt, { max_new_tokens: 60 });
-      return output[0].generated_text.slice(fullPrompt.length).trim();
+      const prompt = "You are a friendly assistant.\n\n" + text;
+      const result = await generator(prompt, { max_new_tokens: 60 });
+      return result[0].generated_text.slice(prompt.length).trim();
     }
 
     async function sendMessage() {
@@ -146,29 +145,22 @@
       try {
         const reply = await getReply(txt);
         appendMessage("PetGPT: " + reply, 'bot');
-      } catch (err) {
-        appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
+      } catch (e) {
+        appendMessage("PetGPT: Error occurred.", 'bot');
       } finally {
         userInput.disabled = false;
         sendBtn.disabled = false;
       }
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') sendMessage();
-    });
+    sendBtn.onclick = sendMessage;
+    userInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+    bgPicker.oninput = e => { document.body.style.background = e.target.value; };
 
-    bgPicker.addEventListener('input', e => {
-      document.body.style.background = e.target.value;
-    });
-
-    appendMessage("Loading GPT-2 Large AI model... Please wait.", "bot");
-    window.onload = async () => {
-      generator = await pipeline('text-generation', 'gpt2-large');
-      gptReady = true;
-      appendMessage("GPT-2 Large AI model loaded!", "bot");
-    };
+    appendMessage("Loading GPT-2 Medium model, please wait...", 'bot');
+    const pipe = await pipeline('text-generation', 'Xenova/gpt2-medium');
+    generator = pipe;
+    appendMessage("PetGPT is ready!", 'bot');
   </script>
 </body>
 </html>
