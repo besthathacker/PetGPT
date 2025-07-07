@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="theme-color" content="#111"/>
-  <title>PetGPT Mobile</title>
+  <title>PetGPT Ultimate</title>
   <link rel="manifest" href="manifest.json">
   <style>
     * { box-sizing: border-box; }
@@ -12,7 +12,7 @@
       margin: 0;
       background: #111;
       color: #fff;
-      font-family: 'Arial', sans-serif;
+      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
       height: 100vh;
@@ -64,7 +64,7 @@
 </head>
 <body>
 <div id="chat">
-  <div class="msg"><strong>System:</strong> Loading models...</div>
+  <div class="msg"><strong>System:</strong> Loading GPT-2...</div>
 </div>
 
 <div id="controls">
@@ -103,7 +103,7 @@
     chat.scrollTop = chat.scrollHeight;
   }
 
-  async function loadModels() {
+  async function loadGPT() {
     try {
       gpt = await pipeline("text-generation", "Xenova/gpt2");
       appendMsg("System", "✅ GPT-2 loaded");
@@ -112,13 +112,22 @@
       appendMsg("System", "❌ Failed to load GPT-2");
       console.error(e);
     }
+  }
 
+  async function loadImageModel() {
+    appendMsg("System", "🎨 Loading image model...");
     try {
-      diffuser = await DiffusionPipeline.from_pretrained("Xenova/stable-diffusion");
-      appendMsg("System", "✅ Image generation ready");
-    } catch (e) {
-      appendMsg("System", "❌ Failed to load image model");
-      console.error(e);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      diffuser = await DiffusionPipeline.from_pretrained(
+        "Xenova/stable-diffusion",
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      appendMsg("System", "✅ Image model loaded");
+    } catch (err) {
+      appendMsg("System", "⚠️ Image model failed. Tap 🎨 to retry.");
+      console.error("Image model load error:", err);
     }
   }
 
@@ -131,24 +140,27 @@
       const result = await gpt(text, { max_new_tokens: 50 });
       appendMsg("PetGPT", result[0].generated_text);
     } catch (e) {
-      appendMsg("PetGPT", "⚠️ Error generating text.");
+      appendMsg("PetGPT", "⚠️ Error generating response.");
     }
   };
 
   imgBtn.onclick = async () => {
     const text = promptEl.value.trim();
-    if (!text || !diffuser) {
-      appendMsg("System", "⚠️ No prompt or model not ready.");
-      return;
-    }
+    if (!text) return appendMsg("System", "Enter a prompt first.");
     appendMsg("You", `🎨 ${text}`);
     promptEl.value = "";
+    if (!diffuser) {
+      appendMsg("System", "Trying to load image model again...");
+      await loadImageModel();
+      if (!diffuser) return;
+    }
     try {
       const result = await diffuser(text);
       const url = await result.image.toDataURL();
       appendMsg("PetGPT", "Here's your image:", url);
-    } catch (e) {
-      appendMsg("PetGPT", "⚠️ Failed to generate image.");
+    } catch (err) {
+      appendMsg("PetGPT", "⚠️ Image generation failed.");
+      console.error(err);
     }
   };
 
@@ -164,11 +176,11 @@
     reader.readAsDataURL(file);
   };
 
-  loadModels();
+  loadGPT();
+  loadImageModel();
 </script>
 
 <script>
-  // Register service worker for installable PWA
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(() => {
       console.log("✅ Service Worker registered");
