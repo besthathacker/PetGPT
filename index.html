@@ -107,7 +107,7 @@
 <div id="controls">
   <input type="text" id="userInput" placeholder="Say something..." />
   <button id="sendBtn" oneclick="sendMessage()">send</button>
-  
+  <button id="voiceCmdBtn">🎤 Voice Command</button>
   <div id="publicFeatures">
     <button onclick="playRPS()">🪨📄✂️ RPS</button>
     <button onclick="dailyFortune()">🔮 Fortune</button>
@@ -119,11 +119,28 @@
     </select>
   </div>
 </div>
-
+<div id="cameraMode" style="margin: 10px 0;">
+  <h4>Camera Mode</h4>
+  <video id="cameraVideo" width="320" height="240" autoplay style="border-radius: 8px;"></video>
+  <br />
+  <button id="takePhotoBtn">Take Photo</button>
+</div>
+<!-- Place inside <body> near chat or controls -->
+<div id="gallery" style="background:#222; padding:10px; max-height:200px; overflow-y:auto; margin:10px 0;">
+  <h4>Image Gallery</h4>
+  <input type="file" id="imgUpload" accept="image/*" multiple />
+  <div id="galleryContainer" style="display:flex; gap:10px; flex-wrap: wrap;"></div>
+</div>
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
   <h4>Admin Panel (unlock with "cheeto")</h4>
 </div>
-
+<div id="soundboard" style="margin: 10px 0;">
+  <h4>Soundboard</h4>
+  <button data-sound="pop">Pop</button>
+  <button data-sound="ding">Ding</button>
+  <button data-sound="click">Click</button>
+</div>
+<audio id="audioPlayer"></audio>
 <footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
@@ -355,7 +372,123 @@ document.getElementById('arModeToggle').addEventListener('change', function () {
     appendMessage(themes[day], 'bot');
   }
  window.playRPS = playRPS;
- window.dailyFortune = dailyFortune;
+ window.dailyFortune = dailyFortune
+const voiceCmdBtn = document.getElementById('voiceCmdBtn');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event) => {
+    const speech = event.results[0][0].transcript.toLowerCase();
+    appendMessage(`🎙️ You said: "${speech}"`, 'user');
+
+    // Simple command matching example:
+    if (speech.includes('play rock paper scissors')) playRPS();
+    else if (speech.includes('daily fortune')) dailyFortune();
+    else if (speech.includes('clear doodle')) document.getElementById('clearDoodle').click();
+    else appendMessage("Sorry, I didn't recognize that voice command.", 'bot');
+  };
+
+  recognition.onerror = (e) => {
+    appendMessage(`Voice recognition error: ${e.error}`, 'bot');
+  };
+} else {
+  appendMessage("Voice recognition not supported in this browser.", 'bot');
+}
+
+voiceCmdBtn.onclick = () => {
+  if (recognition) recognition.start();
+};
+  const cameraVideo = document.getElementById('cameraVideo');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    cameraVideo.srcObject = stream;
+  } catch (e) {
+    appendMessage('Camera access denied or not available.', 'bot');
+  }
+}
+startCamera();
+
+takePhotoBtn.onclick = () => {
+  const photoCanvas = document.createElement('canvas');
+  photoCanvas.width = cameraVideo.videoWidth;
+  photoCanvas.height = cameraVideo.videoHeight;
+  photoCanvas.getContext('2d').drawImage(cameraVideo, 0, 0);
+  const photoDataUrl = photoCanvas.toDataURL();
+  galleryImages.push(photoDataUrl);
+  saveGallery();
+  renderGallery();
+  appendMessage('📷 Photo captured and saved to gallery!', 'bot');
+};
+ // Initialization in <script>
+let galleryImages = JSON.parse(localStorage.getItem('galleryImages') || '[]');
+
+const galleryContainer = document.getElementById('galleryContainer');
+const imgUpload = document.getElementById('imgUpload');
+
+function saveGallery() {
+  localStorage.setItem('galleryImages', JSON.stringify(galleryImages));
+}
+
+function renderGallery() {
+  galleryContainer.innerHTML = '';
+  galleryImages.forEach((src, i) => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.width = '100px';
+    img.style.height = '100px';
+    img.style.objectFit = 'cover';
+    img.style.borderRadius = '8px';
+    img.style.cursor = 'pointer';
+    img.title = 'Click to remove';
+    img.onclick = () => {
+      galleryImages.splice(i, 1);
+      saveGallery();
+      renderGallery();
+    };
+    galleryContainer.appendChild(img);
+  });
+}
+
+imgUpload.addEventListener('change', e => {
+  const files = e.target.files;
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      galleryImages.push(reader.result);
+      saveGallery();
+      renderGallery();
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+renderGallery();
+const audioPlayer = document.getElementById('audioPlayer');
+const soundboard = document.getElementById('soundboard');
+
+const soundFiles = {
+  pop: 'https://actions.google.com/sounds/v1/cartoon/pop.ogg',
+  ding: 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg',
+  click: 'https://actions.google.com/sounds/v1/buttons/button_click.ogg'
+};
+
+soundboard.addEventListener('click', e => {
+  if (e.target.tagName === 'BUTTON') {
+    const soundKey = e.target.getAttribute('data-sound');
+    if (soundFiles[soundKey]) {
+      audioPlayer.src = soundFiles[soundKey];
+      audioPlayer.play();
+    }
+  }
+}); 
   userInput.focus(); 
 </script>
 
