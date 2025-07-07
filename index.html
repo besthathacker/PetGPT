@@ -244,7 +244,20 @@ async function performDuckDuckGoInstantAnswer(query) {
       console.warn("Local model failed:", e);
     }
   }
+// Special cases for short polite messages
+const politeResponses = {
+  "hi": "Hi there! 😊",
+  "hello": "Hello, friend! 🐾",
+  "hey": "Hey hey! 😺",
+  "how are you": "I'm purr-fectly fine! How about you?",
+  "good morning": "Good morning! Hope you slept well. ☀️",
+  "good night": "Good night! Sweet dreams. 🌙"
+};
 
+const lowerMsg = message.trim().toLowerCase();
+if (politeResponses[lowerMsg]) {
+  return politeResponses[lowerMsg];
+}
   // 2. DuckDuckGo fallback
   try {
     const ddg = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(message)}&format=json`);
