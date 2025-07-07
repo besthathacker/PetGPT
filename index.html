@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PetGPT Ultimate</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 260px;
+      background: #1e1e1e;
+      padding: 1em;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.3);
+    }
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    #chat {
+      flex: 1;
+      padding: 1em;
+      overflow-y: auto;
+      background: #1a1a1a;
+    }
+    #input-area {
+      display: flex;
+      padding: 1em;
+      border-top: 1px solid #333;
+      background: #181818;
+    }
+    #user-input {
+      flex: 1;
+      padding: 0.6em;
+      font-size: 1em;
+      border-radius: 4px;
+      border: none;
+      margin-right: 0.5em;
+    }
+    #send-btn {
+      background: #007acc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.6em 1.2em;
+      cursor: pointer;
+    }
+    #send-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+    button, select, input[type="file"] {
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      padding: 0.4em;
+      border-radius: 4px;
+    }
+    img {
+      max-width: 100%;
+      margin-top: 10px;
+    }
+    .chat-entry {
+      margin-bottom: 0.8em;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h2>🐱 PetGPT</h2>
+    <button onclick="resetMemory()">Reset Memory</button>
+    <button onclick="startVoice()">🎤 Voice Chat</button>
+    <button onclick="generateImage()">🖼️ Image Gen</button>
+    <input type="file" id="file-upload" />
+    <select id="personality">
+      <option value="friendly">Friendly</option>
+      <option value="roast">Roast Me</option>
+      <option value="fortune">Fortune Teller</option>
+    </select>
+  </div>
+  <div id="main">
+    <div id="chat">
+      <div id="loading-msg">Loading models...</div>
+    </div>
+    <div id="input-area">
+      <input id="user-input" placeholder="Say something..." />
+      <button id="send-btn" disabled>Send</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.js";
+    import { pipeline as diffusersPipeline } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers/dist/diffusers.js";
+
+    let generator;
+    let memory = JSON.parse(localStorage.getItem("petgpt_memory") || "[]");
+    let personality = 'friendly';
+
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const fileUpload = document.getElementById("file-upload");
+    const personalitySelector = document.getElementById("personality");
+
+    personalitySelector.addEventListener("change", () => {
+      personality = personalitySelector.value;
+      appendMessage("PetGPT", `Switched to ${personality} mode.`);
+    });
+
+    function appendMessage(sender, text) {
+      const div = document.createElement("div");
+      div.className = "chat-entry";
+      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      memory.push({ sender, text });
+      localStorage.setItem("petgpt_memory", JSON.stringify(memory));
+    }
+
+    function resetMemory() {
+      memory = [];
+      localStorage.removeItem("petgpt_memory");
+      appendMessage("System", "Memory reset.");
+    }
+
+    window.resetMemory = resetMemory;
+
+    async function startVoice() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.onresult = (event) => {
+        input.value = event.results[0][0].transcript;
+      };
+      recognition.start();
+    }
+
+    window.startVoice = startVoice;
+
+    async function generateImage() {
+      appendMessage("PetGPT", "Generating image: a magical cat...");
+      const pipe = await diffusersPipeline("stable-diffusion", "Xenova/stable-diffusion");
+      const result = await pipe("a magical cat with sparkles", { num_inference_steps: 25 });
+      const img = document.createElement("img");
+      img.src = result;
+      chat.appendChild(img);
+    }
+
+    window.generateImage = generateImage;
+
+    sendBtn.addEventListener("click", async () => {
+      const text = input.value.trim();
+      if (!text || !generator) return;
+      appendMessage("You", text);
+      input.value = "";
+      const result = await generator(text, { max_new_tokens: 50 });
+      let reply = result[0].generated_text;
+
+      if (personality === 'roast') {
+        reply = "You're lucky I'm even replying. 🐾 Just kidding... or am I?";
+      } else if (personality === 'fortune') {
+        reply = "🔮 I sense something... you will pet a cat today.";
+      }
+
+      appendMessage("PetGPT", reply);
+    });
+
+    fileUpload.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      appendMessage("PetGPT", `Uploaded: ${file.name}`);
+
+      if (file.type.startsWith("image/")) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        chat.appendChild(img);
+      } else if (file.type === "application/pdf") {
+        appendMessage("PetGPT", "PDF uploaded. Text extraction coming soon.");
+      } else if (file.type.startsWith("text/") || file.name.endsWith(".js") || file.name.endsWith(".html")) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target.result.slice(0, 500);
+          appendMessage("PetGPT", "Here's a preview:\n\n" + content);
+        };
+        reader.readAsText(file);
+      } else {
+        appendMessage("PetGPT", "File type not supported yet.");
+      }
+    });
+
+    async function loadModel() {
+      try {
+        generator = await pipeline('text-generation', 'Xenova/gpt2');
+        document.getElementById("loading-msg").remove();
+        appendMessage("PetGPT", "Meow! I’m ready to chat.");
+        sendBtn.disabled = false;
+      } catch (err) {
+        document.getElementById("loading-msg").textContent = "Failed to load models.";
+      }
+    }
+
+    loadModel();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => console.log("✅ Service Worker registered!"))
+        .catch(err => console.error("❌ Service Worker registration failed:", err));
+    }
+  </script>
+</body>
+</html>
