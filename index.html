@@ -408,53 +408,6 @@ voiceCmdBtn.onclick = () => {
   if (recognition) recognition.start();
 };
 
-const enableCameraToggle = document.getElementById('enableCameraToggle');
-const cameraModeDiv = document.getElementById('cameraMode');
-const cameraVideo = document.getElementById('cameraVideo');
-const takePhotoBtn = document.getElementById('takePhotoBtn');
-
-let cameraStream = null;
-
-async function startCamera() {
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    cameraVideo.srcObject = cameraStream;
-  } catch (e) {
-    appendMessage('Camera access denied or not available.', 'bot');
-    enableCameraToggle.checked = false; // turn off toggle if error
-  }
-}
-
-function stopCamera() {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-  cameraVideo.srcObject = null;
-}
-
-enableCameraToggle.addEventListener('change', async () => {
-  if (enableCameraToggle.checked) {
-    cameraModeDiv.style.display = 'block';
-    await startCamera();
-  } else {
-    stopCamera();
-    cameraModeDiv.style.display = 'none';
-  }
-});
-
-takePhotoBtn.onclick = () => {
-  const photoCanvas = document.createElement('canvas');
-  photoCanvas.width = cameraVideo.videoWidth;
-  photoCanvas.height = cameraVideo.videoHeight;
-  photoCanvas.getContext('2d').drawImage(cameraVideo, 0, 0);
-  const photoDataUrl = photoCanvas.toDataURL();
-  galleryImages.push(photoDataUrl);
-  saveGallery();
-  renderGallery();
-  appendMessage('📷 Photo captured and saved to gallery!', 'bot');
-};
-  
 };
  // Initialization in <script>
 let galleryImages = JSON.parse(localStorage.getItem('galleryImages') || '[]');
@@ -500,24 +453,7 @@ imgUpload.addEventListener('change', e => {
 });
 
 renderGallery();
-const audioPlayer = document.getElementById('audioPlayer');
-const soundboard = document.getElementById('soundboard');
-
-const soundFiles = {
-  pop: 'https://actions.google.com/sounds/v1/cartoon/pop.ogg',
-  ding: 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg',
-  click: 'https://actions.google.com/sounds/v1/buttons/button_click.ogg'
-};
-
-soundboard.addEventListener('click', e => {
-  if (e.target.tagName === 'BUTTON') {
-    const soundKey = e.target.getAttribute('data-sound');
-    if (soundFiles[soundKey]) {
-      audioPlayer.src = soundFiles[soundKey];
-      audioPlayer.play();
-    }
-  }
-}); 
+ 
   userInput.focus(); 
 </script>
 
