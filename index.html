@@ -421,7 +421,22 @@ async function sendMessage() {
       drToggle.textContent = '▶️ Play';
     }
   };
+let keyBuffer = "";
 
+document.addEventListener("keydown", function (e) {
+  if (e.key.length === 1) {
+    keyBuffer += e.key;
+    if (keyBuffer.length > 20) keyBuffer = keyBuffer.slice(-20); // prevent infinite length
+
+    if (keyBuffer.includes("Cheeto")) {
+      const adminPanel = document.getElementById("adminPanel");
+      if (adminPanel) {
+        adminPanel.style.display = adminPanel.style.display === "block" ? "none" : "block";
+      }
+      keyBuffer = ""; // reset after triggering
+    }
+  }
+})
   userInput.focus();
 </script>
 
