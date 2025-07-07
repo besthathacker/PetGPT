@@ -164,19 +164,6 @@
     cursor: pointer; background: #357; color: white;
     user-select: none;
   }
-  /* Virtual Pet */
-  #petAvatar {
-    position: fixed; bottom: 20px; right: 20px;
-    width: 120px; height: 120px;
-    background: url('petgpt-icon-512.png') no-repeat center/contain;
-    border-radius: 50%; box-shadow: 0 0 10px #4466aaaa;
-    cursor: pointer;
-    transition: transform 0.3s ease;
-    user-select: none;
-  }
-  #petAvatar:hover {
-    transform: scale(1.1);
-  }
 </style>
 
 </head>
@@ -235,436 +222,399 @@
   </div>
 </div>
 
-<!-- Virtual Pet Avatar -->
-<div id="petAvatar" title="Your virtual pet, Cheeto 🐱"></div>
-
 <script type="module">
-import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0/dist/transformers.min.js";
-import { StableDiffusion } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers@0.3.0/dist/diffusers.min.js";
+import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.2.1/dist/transformers.min.js';
 
-window.addEventListener('DOMContentLoaded', () => {
-  (async () => {
-    // --- GPT-2 Pipeline ---
-    let textPipeline;
-    try {
-      textPipeline = await pipeline('text-generation', 'Xenova/gpt2');
-      console.log('GPT-2 loaded');
-    } catch (e) {
-      alert('Failed to load GPT-2 model: ' + e.message);
-      console.error(e);
+// Model variable
+let generator;
+
+// Persistent chat data structure
+let chats = [];
+let activeChatId = null;
+
+// Load chats from localStorage or initialize
+function loadChats() {
+  const stored = localStorage.getItem('petgpt_chats');
+  if (stored) {
+    chats = JSON.parse(stored);
+    if (chats.length > 0) activeChatId = chats[0].id;
+  } else {
+    createNewChat();
+  }
+}
+
+// Save chats to localStorage
+function saveChats() {
+  localStorage.setItem('petgpt_chats', JSON.stringify(chats));
+}
+
+// Generate unique ID for chats
+function generateId() {
+  return 'chat_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+}
+
+// Create new chat
+function createNewChat() {
+  const id = generateId();
+  const newChat = { id, title: 'New Chat', messages: [] };
+  chats.unshift(newChat);
+  activeChatId = id;
+  saveChats();
+  renderChatList();
+  renderActiveChat();
+}
+
+// Delete chat by id
+function deleteChat(id) {
+  chats = chats.filter(c => c.id !== id);
+  if (activeChatId === id) {
+    activeChatId = chats.length > 0 ? chats[0].id : null;
+  }
+  saveChats();
+  renderChatList();
+  renderActiveChat();
+}
+
+// Rename chat by id
+function renameChat(id, newTitle) {
+  const chat = chats.find(c => c.id === id);
+  if (chat) {
+    chat.title = newTitle;
+    saveChats();
+    renderChatList();
+    renderActiveChatTitle();
+  }
+}
+
+// Render chat list in sidebar
+function renderChatList(filterText = '') {
+  const list = document.getElementById('chatList');
+  list.innerHTML = '';
+  chats.forEach(chat => {
+    if (filterText && !chat.title.toLowerCase().includes(filterText.toLowerCase()) && !chat.messages.some(m => m.text.toLowerCase().includes(filterText.toLowerCase()))) {
       return;
     }
+    const div = document.createElement('div');
+    div.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
+    div.dataset.id = chat.id;
 
-    // --- Stable Diffusion ---
-    let sdModel;
-    try {
-      sdModel = await StableDiffusion.create();
-      console.log('Stable Diffusion loaded');
-    } catch (e) {
-      alert('Failed to load Stable Diffusion: ' + e.message);
-      console.error(e);
-      // No return, user can still chat
-    }
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.value = chat.title;
+    titleInput.spellcheck = false;
+    titleInput.addEventListener('change', () => {
+      renameChat(chat.id, titleInput.value.trim() || 'Untitled Chat');
+    });
+    div.appendChild(titleInput);
 
-    // DOM Elements
-    const chatListEl = document.getElementById('chatList');
-    const newChatBtn = document.getElementById('newChatBtn');
-    const clearMemoryBtn = document.getElementById('clearMemoryBtn');
-    const chatFilterInput = document.getElementById('chatFilterInput');
-    const personalitySelect = document.getElementById('personalitySelect');
-
-    const chatTitle = document.getElementById('chatTitle');
-    const renameChatBtn = document.getElementById('renameChatBtn');
-    const deleteChatBtn = document.getElementById('deleteChatBtn');
-    const chatArea = document.getElementById('chatArea');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const uploadBtn = document.getElementById('uploadBtn');
-    const fileInput = document.getElementById('fileInput');
-
-    const imgGenBtn = document.getElementById('imgGenBtn');
-    const imageModal = document.getElementById('imageModal');
-    const closeImageModalBtn = document.getElementById('closeImageModalBtn');
-    const generateImageBtn = document.getElementById('generateImageBtn');
-    const imagePreview = document.getElementById('imagePreview');
-    const imagePrompt = document.getElementById('imagePrompt');
-    const imgWidth = document.getElementById('imgWidth');
-    const imgHeight = document.getElementById('imgHeight');
-    const imgSteps = document.getElementById('imgSteps');
-    const imgGuidance = document.getElementById('imgGuidance');
-
-    const renameModeDuration = 3000;
-
-    // Virtual pet avatar
-    const petAvatar = document.getElementById('petAvatar');
-
-    // Data structure for chats
-    let chats = [];
-    let activeChatId = null;
-
-    // Load chats from localStorage
-    function loadChats() {
-      const stored = localStorage.getItem('petgpt_chats');
-      if (stored) {
-        chats = JSON.parse(stored);
-      } else {
-        chats = [];
-      }
-    }
-
-    // Save chats to localStorage
-    function saveChats() {
-      localStorage.setItem('petgpt_chats', JSON.stringify(chats));
-    }
-
-    // Create a new chat with unique id and empty messages
-    function createNewChat(title = 'New Chat') {
-      const id = Date.now().toString();
-      chats.push({ id, title, messages: [] });
-      saveChats();
-      setActiveChat(id);
-      renderChatList();
-    }
-
-    // Set active chat by id
-    function setActiveChat(id) {
-      activeChatId = id;
-      renderChatList();
-      renderActiveChat();
-    }
-
-    // Delete chat by id
-    function deleteChat(id) {
-      chats = chats.filter(c => c.id !== id);
-      if (activeChatId === id) {
-        activeChatId = chats.length ? chats[0].id : null;
-      }
-      saveChats();
-      renderChatList();
-      renderActiveChat();
-    }
-
-    // Rename active chat
-    function renameActiveChat(newTitle) {
-      if (!activeChatId) return;
-      const chat = chats.find(c => c.id === activeChatId);
-      if (chat) {
-        chat.title = newTitle || 'Untitled Chat';
-        saveChats();
+    div.addEventListener('click', () => {
+      if (activeChatId !== chat.id) {
+        activeChatId = chat.id;
         renderChatList();
         renderActiveChat();
       }
-    }
+    });
 
-    // Clear all memory (chats)
-    function clearAllMemory() {
-      if (!confirm('Are you sure you want to clear all chat memory?')) return;
+    list.appendChild(div);
+  });
+}
+
+// Render active chat messages
+function renderActiveChat() {
+  const chatArea = document.getElementById('chatArea');
+  chatArea.innerHTML = '';
+  if (!activeChatId) {
+    document.getElementById('chatTitle').textContent = '';
+    disableChatButtons(true);
+    return;
+  }
+  disableChatButtons(false);
+
+  const chat = chats.find(c => c.id === activeChatId);
+  if (!chat) return;
+
+  document.getElementById('chatTitle').textContent = chat.title;
+
+  chat.messages.forEach(msg => {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message ' + (msg.role === 'user' ? 'user' : 'bot');
+    msgDiv.textContent = msg.text;
+    chatArea.appendChild(msgDiv);
+  });
+
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// Render just the chat title editable
+function renderActiveChatTitle() {
+  const chat = chats.find(c => c.id === activeChatId);
+  if (chat) {
+    document.getElementById('chatTitle').textContent = chat.title;
+  }
+}
+
+// Enable or disable chat buttons based on if chat exists
+function disableChatButtons(disable) {
+  document.getElementById('renameChatBtn').disabled = disable;
+  document.getElementById('deleteChatBtn').disabled = disable;
+  document.getElementById('sendBtn').disabled = disable;
+  document.getElementById('userInput').disabled = disable;
+  document.getElementById('voiceBtn').disabled = disable;
+  document.getElementById('uploadBtn').disabled = disable;
+  document.getElementById('imgGenBtn').disabled = disable;
+}
+
+// Add message to active chat and save
+function addMessageToActiveChat(role, text) {
+  if (!activeChatId) return;
+  const chat = chats.find(c => c.id === activeChatId);
+  if (!chat) return;
+  chat.messages.push({ role, text });
+  saveChats();
+  renderActiveChat();
+}
+
+// Handle sending user message and getting bot response
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessageToActiveChat('user', text);
+  input.value = '';
+  disableChatButtons(true);
+
+  try {
+    const response = await generateResponse(text);
+    addMessageToActiveChat('bot', response);
+  } catch (e) {
+    addMessageToActiveChat('bot', 'Error: ' + e.message);
+  } finally {
+    disableChatButtons(false);
+    document.getElementById('userInput').focus();
+  }
+}
+
+// Use GPT-2 text-generation pipeline to generate response
+async function generateResponse(prompt) {
+  if (!generator) {
+    generator = await pipeline('text-generation', 'Xenova/gpt2');
+  }
+  // We feed the prompt, max new tokens to generate
+  const output = await generator(prompt, { max_new_tokens: 100 });
+  return output[0].generated_text.substring(prompt.length).trim();
+}
+
+// Voice input setup
+function setupVoiceInput() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    document.getElementById('voiceBtn').disabled = true;
+    return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event) => {
+    const speechResult = event.results[0][0].transcript;
+    const input = document.getElementById('userInput');
+    input.value = speechResult;
+    input.focus();
+  };
+
+  recognition.onerror = (event) => {
+    console.error('Speech recognition error:', event.error);
+  };
+
+  document.getElementById('voiceBtn').onclick = () => {
+    recognition.start();
+  };
+}
+
+// File upload & processing
+function setupFileUpload() {
+  const fileInput = document.getElementById('fileInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  uploadBtn.onclick = () => {
+    fileInput.click();
+  };
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    // Determine file type and read accordingly
+    if (file.type.startsWith('image/')) {
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        addMessageToActiveChat('user', '[Image uploaded]');
+        // optionally show image or send to image generation model
+      };
+    } else if (file.type === 'application/pdf') {
+      reader.readAsArrayBuffer(file);
+      reader.onload = () => {
+        addMessageToActiveChat('user', '[PDF uploaded]');
+        // optionally parse text if you want to extend
+      };
+    } else {
+      reader.readAsText(file);
+      reader.onload = () => {
+        const text = reader.result;
+        addMessageToActiveChat('user', `[File uploaded: ${file.name}]\n` + text);
+      };
+    }
+  };
+}
+
+// Image generation & editing modal logic placeholder (needs integration with diffusers.js or similar)
+// For now just show/hide modal
+function setupImageModal() {
+  const imgGenBtn = document.getElementById('imgGenBtn');
+  const modal = document.getElementById('imageModal');
+  const closeBtn = document.getElementById('closeImageModalBtn');
+  const generateBtn = document.getElementById('generateImageBtn');
+  const imagePreview = document.getElementById('imagePreview');
+  const imagePrompt = document.getElementById('imagePrompt');
+
+  imgGenBtn.onclick = () => {
+    imagePrompt.value = '';
+    imagePreview.src = '';
+    modal.classList.add('visible');
+  };
+
+  closeBtn.onclick = () => {
+    modal.classList.remove('visible');
+  };
+
+  generateBtn.onclick = () => {
+    const prompt = imagePrompt.value.trim();
+    if (!prompt) {
+      alert('Please enter a prompt for image generation or editing.');
+      return;
+    }
+    alert('Image generation functionality not implemented in this example.');
+    // Here you would call diffusers.js pipeline or similar for offline image generation/editing
+  };
+}
+
+// Chat title rename handler from header contenteditable
+function setupChatTitleRename() {
+  const chatTitle = document.getElementById('chatTitle');
+  const renameBtn = document.getElementById('renameChatBtn');
+
+  renameBtn.onclick = () => {
+    chatTitle.focus();
+  };
+
+  chatTitle.addEventListener('blur', () => {
+    if (!activeChatId) return;
+    const newTitle = chatTitle.textContent.trim() || 'Untitled Chat';
+    renameChat(activeChatId, newTitle);
+  });
+
+  // Prevent new lines in editable div
+  chatTitle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      chatTitle.blur();
+    }
+  });
+}
+
+// New chat button
+function setupNewChatButton() {
+  document.getElementById('newChatBtn').onclick = () => {
+    createNewChat();
+  };
+}
+
+// Delete chat button
+function setupDeleteChatButton() {
+  document.getElementById('deleteChatBtn').onclick = () => {
+    if (!activeChatId) return;
+    if (confirm('Are you sure you want to delete this chat?')) {
+      deleteChat(activeChatId);
+    }
+  };
+}
+
+// Clear memory button
+function setupClearMemoryButton() {
+  document.getElementById('clearMemoryBtn').onclick = () => {
+    if (confirm('Are you sure you want to clear all chat memory? This cannot be undone.')) {
       chats = [];
       activeChatId = null;
       saveChats();
       renderChatList();
       renderActiveChat();
     }
+  };
+}
 
-    // Render chat list in sidebar
-    function renderChatList(filter = '') {
-      chatListEl.innerHTML = '';
-      const filteredChats = chats.filter(c =>
-        c.title.toLowerCase().includes(filter.toLowerCase()) ||
-        c.messages.some(m => m.text.toLowerCase().includes(filter.toLowerCase()))
-      );
+// Filter input for chat list
+function setupFilterInput() {
+  const filterInput = document.getElementById('chatFilterInput');
+  filterInput.oninput = () => {
+    renderChatList(filterInput.value.trim());
+  };
+}
 
-      filteredChats.forEach(chat => {
-        const div = document.createElement('div');
-        div.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
-        div.setAttribute('role', 'option');
-        div.tabIndex = 0;
+// Send button and enter key for input
+function setupSendMessage() {
+  const sendBtn = document.getElementById('sendBtn');
+  const userInput = document.getElementById('userInput');
 
-        // Editable title input for rename inline
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = chat.title;
-        input.spellcheck = false;
-        input.style.display = 'none';
+  sendBtn.onclick = () => sendMessage();
 
-        // Show title span by default
-        const span = document.createElement('span');
-        span.textContent = chat.title;
-
-        div.appendChild(span);
-        div.appendChild(input);
-
-        div.addEventListener('click', () => setActiveChat(chat.id));
-
-        // Inline rename on double-click
-        span.addEventListener('dblclick', () => {
-          span.style.display = 'none';
-          input.style.display = 'block';
-          input.focus();
-          input.selectionStart = input.value.length;
-        });
-
-        // Rename on input blur or enter
-        input.addEventListener('blur', () => {
-          const newTitle = input.value.trim() || 'Untitled Chat';
-          renameActiveChat(newTitle);
-          span.style.display = 'block';
-          input.style.display = 'none';
-        });
-        input.addEventListener('keydown', e => {
-          if (e.key === 'Enter') {
-            input.blur();
-          }
-        });
-
-        chatListEl.appendChild(div);
-      });
+  userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
+  });
+}
 
-    // Render active chat messages
-    function renderActiveChat() {
-      chatArea.innerHTML = '';
-      if (!activeChatId) {
-        chatTitle.textContent = 'No Chat Selected';
-        renameChatBtn.disabled = true;
-        deleteChatBtn.disabled = true;
-        sendBtn.disabled = true;
-        userInput.disabled = true;
-        return;
-      }
-      renameChatBtn.disabled = false;
-      deleteChatBtn.disabled = false;
-      sendBtn.disabled = false;
-      userInput.disabled = false;
+// Personality selector (just a placeholder here for your custom logic)
+function setupPersonalitySelector() {
+  const selector = document.getElementById('personalitySelect');
+  selector.onchange = () => {
+    // Add any personality filter or prompt modification logic here
+    console.log('Personality set to', selector.value);
+  };
+}
 
-      const chat = chats.find(c => c.id === activeChatId);
-      chatTitle.textContent = chat.title;
+// Initial setup function
+async function init() {
+  loadChats();
+  renderChatList();
+  renderActiveChat();
+  setupVoiceInput();
+  setupFileUpload();
+  setupImageModal();
+  setupChatTitleRename();
+  setupNewChatButton();
+  setupDeleteChatButton();
+  setupClearMemoryButton();
+  setupFilterInput();
+  setupSendMessage();
+  setupPersonalitySelector();
 
-      chat.messages.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = 'message ' + (msg.from === 'user' ? 'user' : 'bot');
-        div.textContent = msg.text;
-        chatArea.appendChild(div);
-      });
+  // Preload GPT-2 model asynchronously
+  try {
+    generator = await pipeline('text-generation', 'Xenova/gpt2');
+    console.log('GPT-2 model loaded');
+  } catch (e) {
+    console.error('Failed to load GPT-2 model:', e);
+  }
+}
 
-      chatArea.scrollTop = chatArea.scrollHeight;
-      userInput.focus();
-    }
-
-    // Add message to active chat
-    function addMessageToActiveChat(from, text) {
-      if (!activeChatId) return;
-      const chat = chats.find(c => c.id === activeChatId);
-      chat.messages.push({ from, text });
-      saveChats();
-      renderActiveChat();
-    }
-
-    // Send user input to GPT-2 and get response
-    async function sendUserMessage() {
-      const message = userInput.value.trim();
-      if (!message) return;
-
-      addMessageToActiveChat('user', message);
-
-      userInput.value = '';
-      sendBtn.disabled = true;
-      userInput.disabled = true;
-
-      try {
-        let personality = personalitySelect.value;
-
-        // For "roast" personality, prepend a roast prompt if requested
-        let prompt = message;
-        if (personality === 'roast') {
-          prompt = "Roast the user politely:\nUser: " + message + "\nAI:";
-        } else if (personality === 'formal') {
-          prompt = "Respond formally:\nUser: " + message + "\nAI:";
-        }
-        // Else friendly (default), prompt is the raw message
-
-        const output = await textPipeline(prompt, { max_new_tokens: 100, do_sample: true });
-        let reply = output[0].generated_text;
-
-        // Remove the prompt part from reply if included
-        reply = reply.replace(prompt, '').trim();
-
-        if (!reply) reply = "Sorry, I couldn't generate a response.";
-
-        addMessageToActiveChat('bot', reply);
-
-      } catch (e) {
-        console.error('GPT-2 generation error:', e);
-        addMessageToActiveChat('bot', 'Error generating response.');
-      } finally {
-        sendBtn.disabled = false;
-        userInput.disabled = false;
-        userInput.focus();
-      }
-    }
-
-    // Handle Enter key in input
-    userInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendUserMessage();
-      }
-    });
-
-    sendBtn.addEventListener('click', sendUserMessage);
-
-    // New Chat button
-    newChatBtn.addEventListener('click', () => {
-      createNewChat();
-    });
-
-    // Clear memory button
-    clearMemoryBtn.addEventListener('click', () => {
-      clearAllMemory();
-    });
-
-    // Rename Chat button (commits current chatTitle contenteditable text)
-    renameChatBtn.addEventListener('click', () => {
-      const newTitle = chatTitle.textContent.trim();
-      if (!newTitle) {
-        alert('Chat title cannot be empty.');
-        chatTitle.textContent = chats.find(c => c.id === activeChatId)?.title || 'New Chat';
-        return;
-      }
-      renameActiveChat(newTitle);
-    });
-
-    // Delete Chat button
-    deleteChatBtn.addEventListener('click', () => {
-      if (!activeChatId) return;
-      if (confirm('Delete this chat? This action cannot be undone.')) {
-        deleteChat(activeChatId);
-      }
-    });
-
-    // Filter chats on typing
-    chatFilterInput.addEventListener('input', () => {
-      renderChatList(chatFilterInput.value);
-    });
-
-    // Personality change does nothing immediate, just used on next send
-
-    // Chat list keyboard navigation: select on Enter or Space
-    chatListEl.addEventListener('keydown', e => {
-      if (e.target.classList.contains('chat-item')) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          const idx = Array.from(chatListEl.children).indexOf(e.target);
-          if (idx !== -1) {
-            const chat = chats[idx];
-            setActiveChat(chat.id);
-          }
-        }
-      }
-    });
-
-    // File upload handling
-    uploadBtn.addEventListener('click', () => {
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      const fileName = file.name.toLowerCase();
-      const ext = fileName.split('.').pop();
-
-      if (['png', 'jpg', 'jpeg', 'gif', 'bmp'].includes(ext)) {
-        // Show image in modal and allow editing
-        const url = URL.createObjectURL(file);
-        imagePreview.src = url;
-        imagePrompt.value = '';
-        showImageModal();
-      } else if (ext === 'pdf') {
-        // For PDFs, just say "PDF files not supported yet" (can be extended)
-        alert('PDF preview/editing not supported yet.');
-      } else {
-        // For code/text files, read as text and add to chat as user message
-        const text = await file.text();
-        addMessageToActiveChat('user', `Uploaded file (${file.name}):\n${text}`);
-      }
-
-      fileInput.value = ''; // Reset input
-    });
-
-    // Image modal controls
-    function showImageModal() {
-      imageModal.classList.add('visible');
-    }
-    function hideImageModal() {
-      imageModal.classList.remove('visible');
-      imagePreview.src = '';
-      imagePrompt.value = '';
-    }
-    closeImageModalBtn.addEventListener('click', () => {
-      hideImageModal();
-    });
-
-    imgGenBtn.addEventListener('click', () => {
-      showImageModal();
-    });
-
-    generateImageBtn.addEventListener('click', async () => {
-      if (!sdModel) {
-        alert('Stable Diffusion model not loaded.');
-        return;
-      }
-      generateImageBtn.disabled = true;
-
-      const promptText = imagePrompt.value.trim();
-      if (!promptText) {
-        alert('Please enter a prompt or instructions.');
-        generateImageBtn.disabled = false;
-        return;
-      }
-
-      try {
-        generateImageBtn.textContent = 'Generating...';
-        const width = parseInt(imgWidth.value);
-        const height = parseInt(imgHeight.value);
-        const steps = parseInt(imgSteps.value);
-        const guidance = parseFloat(imgGuidance.value);
-
-        const img = await sdModel.textToImage(promptText, {
-          width,
-          height,
-          numInferenceSteps: steps,
-          guidanceScale: guidance,
-        });
-
-        imagePreview.src = img.src;
-
-      } catch (e) {
-        console.error('Image generation error:', e);
-        alert('Failed to generate image.');
-      } finally {
-        generateImageBtn.textContent = 'Generate/Edit';
-        generateImageBtn.disabled = false;
-      }
-    });
-
-    // Virtual pet avatar click: playful scale animation
-    petAvatar.addEventListener('click', () => {
-      petAvatar.style.transform = 'scale(1.3)';
-      setTimeout(() => petAvatar.style.transform = 'scale(1)', 300);
-    });
-
-    // Initialize app: load chats, create first chat if none
-    loadChats();
-    if (chats.length === 0) {
-      createNewChat('Welcome Chat');
-    } else {
-      setActiveChat(chats[0].id);
-    }
-    renderChatList();
-  })();
-});
+// Start app
+init();
 </script>
 
 </body>
