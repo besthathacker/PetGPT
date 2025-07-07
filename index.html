@@ -119,7 +119,11 @@
     </select>
   </div>
 </div>
-<div id="cameraMode" style="margin: 10px 0;">
+<label style="margin-left:10px;">
+  <input type="checkbox" id="enableCameraToggle" /> Enable Camera Mode
+</label>
+
+<div id="cameraMode" style="margin: 10px 0; display:none;">
   <h4>Camera Mode</h4>
   <video id="cameraVideo" width="320" height="240" autoplay style="border-radius: 8px;"></video>
   <br />
@@ -403,18 +407,41 @@ if (SpeechRecognition) {
 voiceCmdBtn.onclick = () => {
   if (recognition) recognition.start();
 };
-  const cameraVideo = document.getElementById('cameraVideo');
+
+const enableCameraToggle = document.getElementById('enableCameraToggle');
+const cameraModeDiv = document.getElementById('cameraMode');
+const cameraVideo = document.getElementById('cameraVideo');
 const takePhotoBtn = document.getElementById('takePhotoBtn');
+
+let cameraStream = null;
 
 async function startCamera() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    cameraVideo.srcObject = stream;
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    cameraVideo.srcObject = cameraStream;
   } catch (e) {
     appendMessage('Camera access denied or not available.', 'bot');
+    enableCameraToggle.checked = false; // turn off toggle if error
   }
 }
-startCamera();
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraVideo.srcObject = null;
+}
+
+enableCameraToggle.addEventListener('change', async () => {
+  if (enableCameraToggle.checked) {
+    cameraModeDiv.style.display = 'block';
+    await startCamera();
+  } else {
+    stopCamera();
+    cameraModeDiv.style.display = 'none';
+  }
+});
 
 takePhotoBtn.onclick = () => {
   const photoCanvas = document.createElement('canvas');
@@ -426,6 +453,8 @@ takePhotoBtn.onclick = () => {
   saveGallery();
   renderGallery();
   appendMessage('📷 Photo captured and saved to gallery!', 'bot');
+};
+  
 };
  // Initialization in <script>
 let galleryImages = JSON.parse(localStorage.getItem('galleryImages') || '[]');
