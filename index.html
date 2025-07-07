@@ -119,16 +119,6 @@
     </select>
   </div>
 </div>
-<label style="margin-left:10px;">
-  <input type="checkbox" id="enableCameraToggle" /> Enable Camera Mode
-</label>
-
-<div id="cameraMode" style="margin: 10px 0; display:none;">
-  <h4>Camera Mode</h4>
-  <video id="cameraVideo" width="320" height="240" autoplay style="border-radius: 8px;"></video>
-  <br />
-  <button id="takePhotoBtn">Take Photo</button>
-</div>
 <!-- Place inside <body> near chat or controls -->
 <div id="gallery" style="background:#222; padding:10px; max-height:200px; overflow-y:auto; margin:10px 0;">
   <h4>Image Gallery</h4>
@@ -138,13 +128,6 @@
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
   <h4>Admin Panel (unlock with "cheeto")</h4>
 </div>
-<div id="soundboard" style="margin: 10px 0;">
-  <h4>Soundboard</h4>
-  <button data-sound="pop">Pop</button>
-  <button data-sound="ding">Ding</button>
-  <button data-sound="click">Click</button>
-</div>
-<audio id="audioPlayer"></audio>
 <footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
