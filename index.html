@@ -257,13 +257,14 @@ async function sendMessage() {
 
     if (gptReady && generator) {
       try {
-        const fullPrompt = SYSTEM_PROMPT + text;
-        const output = await generator(fullPrompt, {
-          max_new_tokens: 60,
-          temperature: 0.7,
-          top_p: 0.9,
-          repetition_penalty: 1.1,
-        });
+        const output = await generator(userInput, {
+          max_new_tokens: 100,          // Max length of reply
+          temperature: 0.7,             // Balance creativity + reliability
+          top_k: 50,                    // Only pick from top 50 tokens
+          top_p: 0.9,                   // Nucleus sampling
+          repetition_penalty: 1.2,      // Prevents loops / spam
+          stop: ["\n", "</s>"]          // Stop early at line break or EOS
+       });
 
         let generated = output[0].generated_text;
         let reply = generated.slice(fullPrompt.length).trim();
