@@ -308,7 +308,7 @@
       appendMessage('bot', 'Loading GPT-2 small model locally, please wait...');
       try {
         const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0/dist/transformers.min.js');
-        localGPT2Pipeline = await pipeline('text-generation', 'gpt2');
+        localGPT2Pipeline = await pipeline('text-generation', 'Xenova/gpt2');
         appendMessage('bot', 'GPT-2 small model loaded!');
       } catch (e) {
         console.error('Failed to load GPT-2:', e);
