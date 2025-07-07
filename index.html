@@ -1,119 +1,837 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PetGPT Ultimate</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="petgpt-icon-512.png" type="image/png" />
-  <meta name="theme-color" content="#000000" />
-  <style>
-    /* Styles as before (sidebar, chat, modal, inputs) */
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PetGPT Ultimate - Chat + Image Gen + File Upload + Inpainting</title>
+<style>
+  /* Reset and base */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #121212;
+    color: #eee;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+  /* Sidebar */
+  #sidebar {
+    width: 280px;
+    background: #222;
+    display: flex;
+    flex-direction: column;
+  }
+  #sidebar header {
+    padding: 15px;
+    font-size: 1.5em;
+    background: #333;
+    text-align: center;
+    user-select: none;
+  }
+  #tabs {
+    display: flex;
+  }
+  #tabs button {
+    flex: 1;
+    padding: 12px;
+    background: #222;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #ccc;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  #tabs button.active {
+    background: #121212;
+    border-bottom: 2px solid #4a90e2;
+    color: white;
+  }
+  /* Content area */
+  #content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+  }
+  /* Chat tab styles */
+  #chatTab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 15px;
+  }
+  #chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background: #2a2a2a;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .message {
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+  }
+  .message.user {
+    text-align: right;
+    color: #9fdf9f;
+  }
+  .message.bot {
+    text-align: left;
+    color: #df9f9f;
+  }
+  #chatForm {
+    display: flex;
+  }
+  #userInput {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px 0 0 6px;
+    border: none;
+    font-size: 1em;
+  }
+  #sendBtn {
+    padding: 10px 15px;
+    border: none;
+    background-color: #4a90e2;
+    color: white;
+    font-weight: bold;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #sendBtn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+  }
+  #sendBtn:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  /* Image Gen tab */
+  #imageGenTab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 15px;
+  }
+  #imagePrompt {
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-size: 1em;
+    margin-bottom: 10px;
+  }
+  #generateBtn {
+    padding: 10px;
+    border: none;
+    background-color: #4a90e2;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 10px;
+  }
+  #generateBtn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+  }
+  #generateBtn:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  #generatedImage {
+    border-radius: 8px;
+    max-width: 100%;
+    box-shadow: 0 0 12px #4a90e2aa;
+    align-self: center;
+  }
+  /* File Upload tab */
+  #fileUploadTab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 15px;
+    overflow-y: auto;
+  }
+  #fileInput {
+    margin-bottom: 10px;
+  }
+  #filePreview {
+    flex: 1;
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 10px;
+    overflow: auto;
+    color: #eee;
+    white-space: pre-wrap;
+    font-family: monospace;
+    max-height: 300px;
+    margin-bottom: 10px;
+  }
+  #fileImagePreview {
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 0 12px #4a90e2aa;
+    margin-bottom: 10px;
+    image-rendering: pixelated;
+  }
+  #sendFileToAI {
+    padding: 10px;
+    border: none;
+    background-color: #4a90e2;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 10px;
+  }
+  #sendFileToAI:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+  }
+  #sendFileToAI:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  #aiFileResponse {
+    background: #222;
+    padding: 10px;
+    border-radius: 6px;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    color: #df9f9f;
+  }
+  /* Inpainting canvas container */
+  #inpaintContainer {
+    position: relative;
+    width: 100%;
+    max-width: 512px;
+    aspect-ratio: 1/1;
+    margin-bottom: 10px;
+    user-select: none;
+    border-radius: 8px;
+    box-shadow: 0 0 15px #4a90e2aa;
+  }
+  #inpaintImage, #maskCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: 8px;
+  }
+  #maskCanvas {
+    cursor: crosshair;
+  }
+  #inpaintPrompt {
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-size: 1em;
+    margin-bottom: 10px;
+    width: 100%;
+    max-width: 512px;
+  }
+  #generateInpaintBtn {
+    padding: 10px;
+    border: none;
+    background-color: #4a90e2;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    max-width: 512px;
+  }
+  #generateInpaintBtn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+  }
+  #generateInpaintBtn:hover:not(:disabled) {
+    background-color: #357ABD;
+  }
+  #inpaintResult {
+    max-width: 512px;
+    border-radius: 8px;
+    box-shadow: 0 0 12px #4a90e2aa;
+    margin-top: 10px;
+  }
+  /* Footer */
+  footer {
+    padding: 8px 15px;
+    text-align: center;
+    background-color: #333;
+    font-size: 0.9em;
+    user-select: none;
+  }
+</style>
 </head>
 <body>
-  <!-- Sidebar + chat UI -->
-  <div id="sidebar">…</div>
-  <div id="main">…</div>
-  <!-- Image Modal -->
-  <div id="imageModal">…</div>
 
-  <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0/dist/transformers.min.js';
-    import { DiffusionPipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/diffusers/dist/diffusers.min.js';
+<div id="sidebar">
+  <header>PetGPT Ultimate</header>
+  <div id="tabs">
+    <button id="tabChat" class="active" aria-controls="chatTab" aria-selected="true">Chat</button>
+    <button id="tabImageGen" aria-controls="imageGenTab" aria-selected="false">Image Gen</button>
+    <button id="tabFileUpload" aria-controls="fileUploadTab" aria-selected="false">File Upload</button>
+  </div>
+</div>
 
-    let chats = [], activeId, genModel, imgPipeline;
+<div id="content">
+  <!-- Chat Tab -->
+  <section id="chatTab" role="tabpanel" aria-labelledby="tabChat">
+    <div id="chatMessages" aria-live="polite" aria-label="Chat messages"></div>
+    <form id="chatForm" autocomplete="off">
+      <input id="userInput" type="text" placeholder="Type your message..." required autocomplete="off" />
+      <button type="submit" id="sendBtn">Send</button>
+    </form>
+  </section>
 
-    // Load/create chats
-    function loadChats() {
-      const s = localStorage.getItem('petgpt_chats');
-      chats = s ? JSON.parse(s) : [];
-      if (!chats.length) chats = [{ id: Date.now()+'', title: 'New Chat', messages: [] }];
-      activeId = chats[0].id;
-    }
+  <!-- Image Gen Tab -->
+  <section id="imageGenTab" role="tabpanel" aria-labelledby="tabImageGen" hidden>
+    <input id="imagePrompt" type="text" placeholder="Enter image prompt..." autocomplete="off" />
+    <button id="generateBtn">Generate Image</button>
+    <img id="generatedImage" alt="Generated image will appear here" />
+  </section>
 
-    function saveChats() {
-      localStorage.setItem('petgpt_chats', JSON.stringify(chats));
-    }
+  <!-- File Upload Tab -->
+  <section id="fileUploadTab" role="tabpanel" aria-labelledby="tabFileUpload" hidden>
+    <input id="fileInput" type="file" accept=".txt,.js,.py,.json,.html,.css,.md,.pdf,image/*,text/*" />
+    <div id="filePreview" hidden></div>
+    <img id="fileImagePreview" hidden alt="Image preview" />
+    <button id="sendFileToAI" disabled>Send to AI for editing/explanation</button>
+    <pre id="aiFileResponse" hidden></pre>
 
-    // Render list, chat, buttons
-    function render() {
-      // ... similar rendering logic as before ...
-    }
+    <!-- Inpainting editor UI (shows only if image uploaded) -->
+    <div id="inpaintSection" hidden>
+      <div id="inpaintContainer">
+        <img id="inpaintImage" alt="Image to edit" />
+        <canvas id="maskCanvas" width="512" height="512"></canvas>
+      </div>
+      <input id="inpaintPrompt" type="text" placeholder="Describe how to edit the masked area..." autocomplete="off" />
+      <button id="generateInpaintBtn" disabled>Generate Inpainted Image</button>
+      <img id="inpaintResult" alt="Inpainted image result" hidden />
+      <button id="applyInpaintBtn" hidden>Apply Inpainted Image</button>
+    </div>
+  </section>
+</div>
 
-    // Send message
-    async function sendMessage() {
-      const txt = document.getElementById('userInput').value.trim();
-      if (!txt) return;
-      const chat = chats.find(c => c.id === activeId);
-      chat.messages.push({ role:'user', text: txt });
-      saveChats();
-      render();
+<footer>© 2025 PetGPT Ultimate</footer>
 
-      if (!genModel) {
-        genModel = await pipeline('text-generation', 'Xenova/gpt2');
-      }
-      const out = await genModel(txt, { max_new_tokens: 80 });
-      const reply = out[0].generated_text.slice(txt.length).trim();
-      chat.messages.push({ role:'bot', text: reply || '...' });
-      saveChats();
-      render();
-    }
+<script type="module">
+  import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0/dist/transformers.min.js";
+  import { StableDiffusion } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers@0.4.1/dist/diffusers.min.js";
 
-    document.getElementById('sendBtn').onclick = sendMessage;
-    document.getElementById('userInput').onkeydown = e => {
-      if (e.key === 'Enter' && !e.shiftKey) sendMessage();
-    };
+  // Elements - Chat
+  const chatMessages = document.getElementById('chatMessages');
+  const chatForm = document.getElementById('chatForm');
+  const userInput = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
 
-    // Image generation using diffusers.js
-    async function setupImagePipeline() {
-      if (!imgPipeline) {
-        imgPipeline = await DiffusionPipeline.from_pretrained('Xenova/stable-diffusion', {
-          scheduler: 'karras',
+  // Elements - Image Gen
+  const imagePrompt = document.getElementById('imagePrompt');
+  const generateBtn = document.getElementById('generateBtn');
+  const generatedImage = document.getElementById('generatedImage');
+
+  // Elements - File Upload
+  const fileInput = document.getElementById('fileInput');
+  const filePreview = document.getElementById('filePreview');
+  const fileImagePreview = document.getElementById('fileImagePreview');
+  const sendFileToAI = document.getElementById('sendFileToAI');
+  const aiFileResponse = document.getElementById('aiFileResponse');
+
+  // Inpainting UI
+  const inpaintSection = document.getElementById('inpaintSection');
+  const inpaintContainer = document.getElementById('inpaintContainer');
+  const inpaintImage = document.getElementById('inpaintImage');
+  const maskCanvas = document.getElementById('maskCanvas');
+  const inpaintPrompt = document.getElementById('inpaintPrompt');
+  const generateInpaintBtn = document.getElementById('generateInpaintBtn');
+  const inpaintResult = document.getElementById('inpaintResult');
+  const applyInpaintBtn = document.getElementById('applyInpaintBtn');
+
+  // Tabs
+  const tabChat = document.getElementById('tabChat');
+  const tabImageGen = document.getElementById('tabImageGen');
+  const tabFileUpload = document.getElementById('tabFileUpload');
+
+  const chatTab = document.getElementById('chatTab');
+  const imageGenTab = document.getElementById('imageGenTab');
+  const fileUploadTab = document.getElementById('fileUploadTab');
+
+  // State
+  let textGenerator;
+  let stableDiffusion;
+  let inpaintingPipeline;
+
+  // Memory keys
+  const MEMORY_KEY = 'petgpt_chat_memory';
+
+  // Initialize GPT-2 text generation pipeline
+  async function initTextGenerator() {
+    appendMessage("Loading GPT-2 model... Please wait.", "bot");
+    textGenerator = await pipeline("text-generation", "gpt2");
+    appendMessage("GPT-2 model loaded. You can start chatting!", "bot");
+  }
+
+  // Initialize Stable Diffusion pipeline
+  async function initStableDiffusion() {
+    appendMessage("Loading Stable Diffusion model... Please wait.", "bot");
+    stableDiffusion = await StableDiffusion.create();
+    appendMessage("Stable Diffusion model loaded. Ready for image generation!", "bot");
+
+    // Also create inpainting pipeline based on Stable Diffusion
+    inpaintingPipeline = await StableDiffusion.create({
+      scheduler: "DDIM",
+      variant: "inpainting",
+    });
+  }
+
+  // Append message helper (chat)
+  function appendMessage(text, sender) {
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message', sender);
+    msgDiv.textContent = text;
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return msgDiv;
+  }
+
+  // Load chat memory from localStorage
+  function loadMemory() {
+    const data = localStorage.getItem(MEMORY_KEY);
+    if (data) {
+      try {
+        const messages = JSON.parse(data);
+        messages.forEach(({ text, sender }) => {
+          appendMessage(text, sender);
         });
+      } catch {
+        localStorage.removeItem(MEMORY_KEY);
       }
     }
+  }
 
-    document.getElementById('imgGenBtn').onclick = async () => {
-      await setupImagePipeline();
-      document.getElementById('imageModal').classList.add('visible');
-    };
+  // Save chat memory to localStorage
+  function saveMemory() {
+    const messages = [];
+    document.querySelectorAll('#chatMessages .message').forEach(msg => {
+      messages.push({
+        text: msg.textContent,
+        sender: msg.classList.contains('user') ? 'user' : 'bot'
+      });
+    });
+    localStorage.setItem(MEMORY_KEY, JSON.stringify(messages));
+  }
 
-    document.getElementById('generateImageBtn').onclick = async () => {
-      const prompt = document.getElementById('imagePrompt').value.trim();
-      if (!prompt) { alert('Enter prompt'); return; }
+  // Generate GPT-2 response
+  async function generateResponse(prompt) {
+    try {
+      const output = await textGenerator(prompt, { max_new_tokens: 50, do_sample: true, temperature: 0.7 });
+      return output[0]?.generated_text.slice(prompt.length).trim() || "(No response)";
+    } catch (e) {
+      return "(Error generating response)";
+    }
+  }
 
-      const w = +document.getElementById('imgWidth').value;
-      const h = +document.getElementById('imgHeight').value;
-      const st = +document.getElementById('imgSteps').value;
-      const gs = +document.getElementById('imgGuidance').value;
+  // Chat form submit handler
+  chatForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const userText = userInput.value.trim();
+    if (!userText) return;
 
-      const { image } = await imgPipeline(prompt, {
-        width: w, height: h,
-        num_inference_steps: st,
-        guidance_scale: gs,
+    appendMessage(userText, 'user');
+    userInput.value = '';
+    sendBtn.disabled = true;
+
+    const typingMsg = appendMessage('...', 'bot');
+
+    const reply = await generateResponse(userText);
+
+    typingMsg.textContent = reply;
+
+    sendBtn.disabled = false;
+    userInput.focus();
+
+    saveMemory();
+  });
+
+  // Image generation handler
+  generateBtn.addEventListener('click', async () => {
+    const prompt = imagePrompt.value.trim();
+    if (!prompt) return;
+
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Generating...";
+
+    try {
+      // Generate image tensor
+      const imageTensor = await stableDiffusion.generate(prompt, {
+        width: 512,
+        height: 512,
+        num_inference_steps: 20,
+        guidance_scale: 7.5,
       });
 
-      document.getElementById('imagePreview').src = URL.createObjectURL(await image.convert('blob'));
-      const chat = chats.find(c => c.id === activeId);
-      chat.messages.push({ role: 'bot', text: `[Image: ${prompt}]` });
-      saveChats();
-      render();
-    };
+      // Convert tensor to image URL
+      const blob = await imageTensor.toBlob();
+      const url = URL.createObjectURL(blob);
 
-    document.getElementById('closeImageModalBtn').onclick = () => {
-      document.getElementById('imageModal').classList.remove('visible');
-    };
-
-    // Other setup: new, delete, clear, rename, upload, voice, filtering...
-    // (You can copy the complete working setup from the previous iteration.)
-
-    // Initialize app
-    async function init() {
-      loadChats();
-      render();
+      generatedImage.src = url;
+      generatedImage.alt = `Generated image for prompt: ${prompt}`;
+    } catch (e) {
+      alert("Error generating image: " + e.message);
+      generatedImage.src = "";
+      generatedImage.alt = "No image generated";
     }
-    init();
-  </script>
+
+    generateBtn.textContent = "Generate Image";
+    generateBtn.disabled = false;
+  });
+
+  // Tab switching
+  function switchTab(selectedTab) {
+    if (selectedTab === 'chat') {
+      tabChat.classList.add('active');
+      tabChat.setAttribute('aria-selected', 'true');
+      tabImageGen.classList.remove('active');
+      tabImageGen.setAttribute('aria-selected', 'false');
+      tabFileUpload.classList.remove('active');
+      tabFileUpload.setAttribute('aria-selected', 'false');
+
+      chatTab.hidden = false;
+      imageGenTab.hidden = true;
+      fileUploadTab.hidden = true;
+    } else if (selectedTab === 'imageGen') {
+      tabChat.classList.remove('active');
+      tabChat.setAttribute('aria-selected', 'false');
+      tabImageGen.classList.add('active');
+      tabImageGen.setAttribute('aria-selected', 'true');
+      tabFileUpload.classList.remove('active');
+      tabFileUpload.setAttribute('aria-selected', 'false');
+
+      chatTab.hidden = true;
+      imageGenTab.hidden = false;
+      fileUploadTab.hidden = true;
+    } else {
+      tabChat.classList.remove('active');
+      tabChat.setAttribute('aria-selected', 'false');
+      tabImageGen.classList.remove('active');
+      tabImageGen.setAttribute('aria-selected', 'false');
+      tabFileUpload.classList.add('active');
+      tabFileUpload.setAttribute('aria-selected', 'true');
+
+      chatTab.hidden = true;
+      imageGenTab.hidden = true;
+      fileUploadTab.hidden = false;
+    }
+  }
+  tabChat.addEventListener('click', () => switchTab('chat'));
+  tabImageGen.addEventListener('click', () => switchTab('imageGen'));
+  tabFileUpload.addEventListener('click', () => switchTab('fileUpload'));
+
+  // File upload processing
+  fileInput.addEventListener('change', async () => {
+    aiFileResponse.hidden = true;
+    sendFileToAI.disabled = true;
+    filePreview.hidden = true;
+    fileImagePreview.hidden = true;
+    filePreview.textContent = '';
+    fileImagePreview.src = '';
+    inpaintSection.hidden = true;
+    inpaintResult.hidden = true;
+    applyInpaintBtn.hidden = true;
+    generateInpaintBtn.disabled = true;
+    inpaintPrompt.value = '';
+
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const fileType = file.type;
+
+    if (fileType.startsWith('image/')) {
+      // Show inpainting UI with canvas
+      inpaintSection.hidden = false;
+
+      // Load image to inpaintImage and canvas
+      const imgURL = URL.createObjectURL(file);
+      await loadImageToCanvas(imgURL);
+      sendFileToAI.disabled = false;
+
+    } else if (fileType === 'application/pdf') {
+      // Extract text from PDF using pdf.js
+      try {
+        await loadPDFjs();
+        const pdfText = await extractTextFromPDF(file);
+        filePreview.textContent = pdfText || '(No extractable text found)';
+        filePreview.hidden = false;
+        sendFileToAI.disabled = true; // Large text? disable AI sending by default
+        alert("PDF text extracted. You can copy and paste text into chat for AI.");
+      } catch (e) {
+        filePreview.textContent = "(Failed to extract PDF text: " + e.message + ")";
+        filePreview.hidden = false;
+      }
+    } else if (fileType.startsWith('text/') || isCodeFile(file.name)) {
+      // Show editable text preview
+      const text = await file.text();
+      filePreview.contentEditable = true;
+      filePreview.textContent = text;
+      filePreview.hidden = false;
+      sendFileToAI.disabled = false;
+    } else {
+      filePreview.textContent = "(Unsupported file type for preview)";
+      filePreview.hidden = false;
+      sendFileToAI.disabled = true;
+    }
+  });
+
+  // Helper to check common code file extensions
+  function isCodeFile(filename) {
+    return /\.(js|py|json|html|css|md|ts|jsx|tsx|java|c|cpp|sh)$/i.test(filename);
+  }
+
+  // Send file content to GPT-2 AI for editing/explanation
+  sendFileToAI.addEventListener('click', async () => {
+    sendFileToAI.disabled = true;
+    aiFileResponse.hidden = true;
+    aiFileResponse.textContent = '';
+
+    // For images, AI chat send not supported here (use inpainting)
+    if (!inpaintSection.hidden) {
+      alert("To edit images, use the inpainting section below.");
+      sendFileToAI.disabled = false;
+      return;
+    }
+
+    let prompt = '';
+
+    if (!filePreview.hidden) {
+      prompt = filePreview.textContent.trim();
+    } else {
+      alert("No preview content to send.");
+      sendFileToAI.disabled = false;
+      return;
+    }
+
+    if (!prompt) {
+      alert("Preview content is empty.");
+      sendFileToAI.disabled = false;
+      return;
+    }
+
+    aiFileResponse.hidden = false;
+    aiFileResponse.textContent = "AI is processing, please wait...";
+
+    try {
+      const response = await generateResponse(prompt);
+      aiFileResponse.textContent = response;
+    } catch (e) {
+      aiFileResponse.textContent = "Error processing AI response.";
+    }
+
+    sendFileToAI.disabled = false;
+  });
+
+  // Load PDF.js library dynamically
+  async function loadPDFjs() {
+    if (window.pdfjsLib) return;
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js';
+      script.onload = () => {
+        window.pdfjsLib = window['pdfjs-dist/build/pdf'];
+        // Use worker from CDN
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.worker.min.js';
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Extract text from PDF file
+  async function extractTextFromPDF(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    const maxPages = Math.min(pdf.numPages, 5); // limit pages to 5 for speed
+
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + '\n\n';
+    }
+    return fullText.trim();
+  }
+
+  // Load image and setup canvas/mask for inpainting
+  async function loadImageToCanvas(imageURL) {
+    return new Promise((resolve) => {
+      inpaintImage.onload = () => {
+        setupCanvas(inpaintImage.naturalWidth, inpaintImage.naturalHeight);
+        resolve();
+      };
+      inpaintImage.src = imageURL;
+    });
+  }
+
+  // Setup canvas size and prepare mask
+  function setupCanvas(width, height) {
+    maskCanvas.width = width;
+    maskCanvas.height = height;
+
+    // Clear canvas
+    const ctx = maskCanvas.getContext('2d');
+    ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    ctx.fillStyle = "rgba(0,0,0,0)";
+
+    isPainting = false;
+  }
+
+  // Painting mask logic
+  let isPainting = false;
+  let lastX = 0;
+  let lastY = 0;
+  const brushSize = 30;
+
+  function paintMask(x, y) {
+    const ctx = maskCanvas.getContext('2d');
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = brushSize;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    lastX = x;
+    lastY = y;
+  }
+
+  maskCanvas.addEventListener('mousedown', (e) => {
+    isPainting = true;
+    const rect = maskCanvas.getBoundingClientRect();
+    lastX = (e.clientX - rect.left) * (maskCanvas.width / rect.width);
+    lastY = (e.clientY - rect.top) * (maskCanvas.height / rect.height);
+  });
+  maskCanvas.addEventListener('mousemove', (e) => {
+    if (!isPainting) return;
+    const rect = maskCanvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (maskCanvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (maskCanvas.height / rect.height);
+    paintMask(x, y);
+  });
+  maskCanvas.addEventListener('mouseup', () => {
+    isPainting = false;
+    generateInpaintBtn.disabled = false;
+  });
+  maskCanvas.addEventListener('mouseleave', () => {
+    isPainting = false;
+  });
+
+  // Generate inpainted image
+  generateInpaintBtn.addEventListener('click', async () => {
+    const prompt = inpaintPrompt.value.trim();
+    if (!prompt) {
+      alert("Please enter an inpainting prompt.");
+      return;
+    }
+    generateInpaintBtn.disabled = true;
+    generateInpaintBtn.textContent = "Generating inpainted image...";
+
+    try {
+      // Get image and mask as tensors
+      const imageTensor = await imageToTensor(inpaintImage);
+      const maskTensor = await canvasToMaskTensor(maskCanvas);
+
+      // Generate inpainted image
+      const outputTensor = await inpaintingPipeline.inpaint(imageTensor, maskTensor, prompt, {
+        width: imageTensor.shape[2],
+        height: imageTensor.shape[1],
+        num_inference_steps: 30,
+        guidance_scale: 7.5,
+      });
+
+      // Convert output tensor to blob URL
+      const blob = await outputTensor.toBlob();
+      const url = URL.createObjectURL(blob);
+
+      inpaintResult.src = url;
+      inpaintResult.hidden = false;
+      applyInpaintBtn.hidden = false;
+      applyInpaintBtn.disabled = false;
+
+    } catch (e) {
+      alert("Error during inpainting: " + e.message);
+      console.error(e);
+    }
+
+    generateInpaintBtn.textContent = "Generate Inpainted Image";
+    generateInpaintBtn.disabled = false;
+  });
+
+  // Apply the inpainted image back to editing canvas for further edits
+  applyInpaintBtn.addEventListener('click', async () => {
+    if (!inpaintResult.src) return;
+    // Revoke old URLs to avoid leaks
+    URL.revokeObjectURL(inpaintImage.src);
+    inpaintImage.src = inpaintResult.src;
+
+    // Clear mask and reset UI
+    const ctx = maskCanvas.getContext('2d');
+    ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    inpaintResult.hidden = true;
+    applyInpaintBtn.hidden = true;
+    inpaintPrompt.value = '';
+    generateInpaintBtn.disabled = true;
+  });
+
+  // Convert <img> element to tensor compatible with Stable Diffusion (RGB normalized)
+  async function imageToTensor(img) {
+    const offscreen = new OffscreenCanvas(img.naturalWidth, img.naturalHeight);
+    const ctx = offscreen.getContext('2d');
+    ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+    const imageData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+
+    // Create Float32Array normalized tensor [1, 3, H, W]
+    const data = new Float32Array(img.naturalWidth * img.naturalHeight * 3);
+    for (let i = 0; i < img.naturalWidth * img.naturalHeight; i++) {
+      data[i * 3 + 0] = imageData.data[i * 4 + 0] / 255; // R
+      data[i * 3 + 1] = imageData.data[i * 4 + 1] / 255; // G
+      data[i * 3 + 2] = imageData.data[i * 4 + 2] / 255; // B
+    }
+    // Tensor shape: [batch=1, channels=3, height, width]
+    return new stableDiffusion.Tensor(data, [1, 3, img.naturalHeight, img.naturalWidth]);
+  }
+
+  // Convert mask canvas to mask tensor (single channel 0/1 float)
+  async function canvasToMaskTensor(canvas) {
+    const ctx = canvas.getContext('2d');
+    const maskData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = new Float32Array(canvas.width * canvas.height);
+    for (let i = 0; i < canvas.width * canvas.height; i++) {
+      // White pixels (mask) get 1, others 0
+      const alpha = maskData.data[i * 4 + 3];
+      const avg = (maskData.data[i * 4] + maskData.data[i * 4 + 1] + maskData.data[i * 4 + 2]) / 3;
+      data[i] = (alpha > 128 && avg > 128) ? 1.0 : 0.0;
+    }
+    // Shape: [batch=1, channels=1, height, width]
+    return new stableDiffusion.Tensor(data, [1, 1, canvas.height, canvas.width]);
+  }
+
+  // On load init
+  window.onload = async () => {
+    loadMemory();
+    await initTextGenerator();
+    await initStableDiffusion();
+  };
+</script>
+
 </body>
 </html>
