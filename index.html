@@ -196,78 +196,71 @@ async function performDuckDuckGoInstantAnswer(query) {
   }
 }
  
-  async function getReply(text) {
-  const t = text.toLowerCase();
+  async function getReply(message, memory) {
+  const rudeWords = [
+    "stupid", "idiot", "dumb", "hate you", "shut up", "go away",
+    "useless", "worthless", "annoying", "nobody likes", "you're bad",
+    "kill", "die", "ugly", "fat", "dumbest", "jerk", "moron", "trash"
+  ];
 
-  // Unlock admin panel with "cheeto"
-  if (t.includes('cheeto')) {
-    adminPanel.style.display = 'block';
-    adminPanel.setAttribute('aria-hidden', 'false');
-    return "Admin unlocked!";
+  function sanitizeMeanWords(text) {
+    let result = text;
+    rudeWords.forEach(word => {
+      const regex = new RegExp("\\b" + word + "\\b", "gi");
+      result = result.replace(regex, "[MEOW]");
+    });
+    return result;
   }
 
-  // Dictionary check
-  for (const key in extendedDictionary) {
-    if (t.includes(key)) return extendedDictionary[key];
+  function filterToxicSentences(text) {
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const filtered = sentences.map(sentence => {
+      const lower = sentence.toLowerCase();
+      if (rudeWords.some(word => lower.includes(word))) {
+        return "That wasn't very nice, meow!";
+      }
+      return sentence;
+    });
+    return filtered.join(" ");
   }
 
-  const needsInstantAnswer = /\?$/.test(t) || /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(t);
+  function isWeirdResponse(reply) {
+    return !reply || reply.trim() === "" || /^(\W|[a-zA-Z0-9])\1+$/.test(reply);
+  }
 
   let response = "";
 
-  if (gptReady && generator) {
-    const systemPrompt = `You are PetGPT, a friendly AI cat who replies with short, helpful, and slightly silly responses. 
-Avoid repeating user input. Keep it under 2 sentences.
-User: ${text}
-PetGPT:`;
-
+  // 1. Try local GPT-2 if available
+  if (typeof pipeline === "function") {
     try {
-      const output = await generator(systemPrompt, {
-        max_new_tokens: 100,
-        temperature: 0.6,
-        top_k: 40,
-        top_p: 0.85,
-        repetition_penalty: 1.2,
-        stop: ["\n", "</s>", "User:", "PetGPT:"]
-      });
-
-      let raw = output[0].generated_text || "";
-      let reply = raw.split("PetGPT:").pop().trim();
-
-      reply = sanitizeReply(reply, text);
-
-      if (reply && !isWeirdResponse(reply)) {
-        response = reply;
+      const pipe = await pipeline("text-generation", selectedModel || "gpt2");
+      const result = await pipe(message, { max_new_tokens: 100 });
+      let reply = result[0]?.generated_text?.replace(message, "").trim();
+      if (!isWeirdResponse(reply)) {
+        response = filterToxicSentences(sanitizeMeanWords(reply));
+        return response;
       }
-
-    } catch (err) {
-      console.warn("GPT-2 error:", err);
+    } catch (e) {
+      console.warn("Local model failed:", e);
     }
   }
 
-  // Use DuckDuckGo if GPT-2 failed
-  if (!response && needsInstantAnswer) {
-    const duckAnswer = await performDuckDuckGoInstantAnswer(text);
-    if (duckAnswer) {
-      response = duckAnswer;
+  // 2. DuckDuckGo fallback
+  try {
+    const ddg = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(message)}&format=json`);
+    const data = await ddg.json();
+    let reply = data.Abstract || data.Answer || data.RelatedTopics?.[0]?.Text;
+    if (reply) {
+      response = filterToxicSentences(sanitizeMeanWords(reply));
+      return response;
     }
+  } catch (e) {
+    console.warn("DuckDuckGo fallback failed:", e);
   }
 
-  return response || "MEOW! Sorry, I can't say that, but this is sure a purr-fect GPT.";
-}
-function sanitizeReply(reply, userInput) {
-  reply = reply.replace(/^["“”']+|["“”']+$/g, ""); // Trim quotes
-  reply = reply.replace(/(?:^|\s)(User:|PetGPT:).*/gi, "").trim(); // Remove extra labels
-  if (reply.toLowerCase().includes(userInput.toLowerCase())) {
-    return ""; // Avoid echoing
-  }
-  return reply;
-}
-
-function isWeirdResponse(text) {
-  const gibberishPattern = /[a-z]{10,}|[^\w\s.,?!'"-]/gi;
-  const nonsense = gibberishPattern.test(text) || text.length < 5 || text.length > 300;
-  return nonsense;
+  // 3. Final fallback
+  response = "MEOW! Sorry, I don't know the answer to that.";
+  return response;
 }
 // Your message sending code:
 
