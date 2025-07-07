@@ -227,7 +227,46 @@ import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.2.
 
 // Model variable
 let generator;
+import { DiffusionPipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/diffusers/dist/diffusers.min.js';
 
+  let pipe;
+
+  async function loadDiffusers() {
+    pipe = await DiffusionPipeline.from_pretrained('Xenova/stable-diffusion', {
+      scheduler: 'ddim', // or 'pndm', 'euler'
+    });
+    console.log('Stable Diffusion loaded');
+  }
+
+  async function generateImage(prompt, width = 512, height = 512, steps = 25, guidanceScale = 7.5) {
+    if (!pipe) {
+      console.error("Pipeline not loaded.");
+      return;
+    }
+    const image = await pipe(prompt, {
+      width,
+      height,
+      num_inference_steps: steps,
+      guidance_scale: guidanceScale,
+    });
+    document.getElementById('imagePreview').src = image.toDataURL(); // Update your <img> preview
+  }
+
+  // Trigger loading on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    loadDiffusers();
+
+    // Hook up generate button
+    document.getElementById('generateImageBtn').addEventListener('click', () => {
+      const prompt = document.getElementById('imagePrompt').value;
+      const width = parseInt(document.getElementById('imgWidth').value);
+      const height = parseInt(document.getElementById('imgHeight').value);
+      const steps = parseInt(document.getElementById('imgSteps').value);
+      const guidance = parseFloat(document.getElementById('imgGuidance').value);
+
+      generateImage(prompt, width, height, steps, guidance);
+    });
+  });
 // Persistent chat data structure
 let chats = [];
 let activeChatId = null;
