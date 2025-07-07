@@ -206,78 +206,68 @@ async function performDuckDuckGoInstantAnswer(query) {
     return "Admin unlocked!";
   }
 
-  // Extended dictionary lookup (simple keywords)
+  // Dictionary check
   for (const key in extendedDictionary) {
     if (t.includes(key)) return extendedDictionary[key];
   }
 
-  // Detect if the input is a question or info-seeking
   const needsInstantAnswer = /\?$/.test(t) || /^(who|what|where|when|why|how|does|is|can|should|could|would|do)\b/.test(t);
 
   let response = "";
 
   if (gptReady && generator) {
-    // Compose full prompt with system instructions
-    const systemPrompt = `You are PetGPT, a helpful and funny cat-like AI assistant who never repeats itself.
-You reply concisely and politely in 1-2 sentences.
-User: `;
-    const fullPrompt = systemPrompt + text + "\nPetGPT:";
+    const systemPrompt = `You are PetGPT, a friendly AI cat who replies with short, helpful, and slightly silly responses. 
+Avoid repeating user input. Keep it under 2 sentences.
+User: ${text}
+PetGPT:`;
 
     try {
-      const output = await generator(fullPrompt, {
+      const output = await generator(systemPrompt, {
         max_new_tokens: 100,
-        temperature: 0.7,
-        top_k: 50,
-        top_p: 0.9,
-        repetition_penalty: 1.3,
+        temperature: 0.6,
+        top_k: 40,
+        top_p: 0.85,
+        repetition_penalty: 1.2,
         stop: ["\n", "</s>", "User:", "PetGPT:"]
       });
 
-      let generated = output[0].generated_text || "";
+      let raw = output[0].generated_text || "";
+      let reply = raw.split("PetGPT:").pop().trim();
 
-      // Extract the part after "PetGPT:" and trim it
-      let reply = generated.split("PetGPT:")[1]?.trim() || "";
+      reply = sanitizeReply(reply, text);
 
-      // Remove repeated sentences (simple cleanup)
-      reply = removeRepeats(reply);
-
-      // Fallback in case of bad output
-      if (!reply || reply.toLowerCase().startsWith(text.toLowerCase())) {
-        reply = "";
+      if (reply && !isWeirdResponse(reply)) {
+        response = reply;
       }
 
-      response = reply;
-
-    } catch (e) {
-      console.error('GPT-2 generation error:', e);
-      response = "";
+    } catch (err) {
+      console.warn("GPT-2 error:", err);
     }
   }
 
-  // If question detected and GPT response is empty or suspicious, use DuckDuckGo instant answer
-  if (needsInstantAnswer && (!response || response.length < 100 || response.toLowerCase().includes(t))) {
-    const instantAnswer = await performDuckDuckGoInstantAnswer(text);
-    if (instantAnswer) {
-      response += (response ? "\n\n" : "") + instantAnswer;
+  // Use DuckDuckGo if GPT-2 failed
+  if (!response && needsInstantAnswer) {
+    const duckAnswer = await performDuckDuckGoInstantAnswer(text);
+    if (duckAnswer) {
+      response = duckAnswer;
     }
   }
 
-  return response || "Sorry, I can't respond right now.";
+  return response || "MEOW! Sorry, I can't say that, but this is sure a purr-fect GPT.";
+}
+function sanitizeReply(reply, userInput) {
+  reply = reply.replace(/^["“”']+|["“”']+$/g, ""); // Trim quotes
+  reply = reply.replace(/(?:^|\s)(User:|PetGPT:).*/gi, "").trim(); // Remove extra labels
+  if (reply.toLowerCase().includes(userInput.toLowerCase())) {
+    return ""; // Avoid echoing
+  }
+  return reply;
 }
 
-// Simple helper function to remove repeated sentences
-function removeRepeats(text) {
-  const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
-  const uniqueSentences = [];
-  const seen = new Set();
-  for (const sentence of sentences) {
-    const s = sentence.trim();
-    if (!seen.has(s)) {
-      seen.add(s);
-      uniqueSentences.push(s);
-    }
-  }
-  return uniqueSentences.join(" ").trim();
+function isWeirdResponse(text) {
+  const gibberishPattern = /[a-z]{10,}|[^\w\s.,?!'"-]/gi;
+  const nonsense = gibberishPattern.test(text) || text.length < 5 || text.length > 300;
+  return nonsense;
 }
 // Your message sending code:
 
