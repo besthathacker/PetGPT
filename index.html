@@ -199,16 +199,24 @@
       }
     });
 
-    async function loadModel() {
-      try {
-        generator = await pipeline('text-generation', 'Xenova/gpt2');
-        document.getElementById("loading-msg").remove();
-        appendMessage("PetGPT", "Meow! I’m ready to chat.");
-        sendBtn.disabled = false;
-      } catch (err) {
-        document.getElementById("loading-msg").textContent = "Failed to load models.";
-      }
-    }
+async function loadModel() {
+  try {
+    appendMessage("System", "Loading models...");
+    generator = await pipeline('text-generation', 'Xenova/gpt2');
+    removeLoadingMessages();
+    appendMessage("PetGPT", "Meow! Model loaded.");
+    sendBtn.disabled = false;
+  } catch (e) {
+    removeLoadingMessages();
+    appendMessage("System", "Failed to load models.");
+    console.error(e);
+  }
+}
+
+function removeLoadingMessages() {
+  const loadingMsgs = [...chat.querySelectorAll('div')].filter(div => div.textContent.includes('Loading models'));
+  loadingMsgs.forEach(msg => msg.remove());
+}
 
     loadModel();
   </script>
