@@ -119,12 +119,8 @@
     </select>
   </div>
 </div>
-<!-- Place inside <body> near chat or controls -->
-<div id="gallery" style="background:#222; padding:10px; max-height:200px; overflow-y:auto; margin:10px 0;">
-  <h4>Image Gallery</h4>
-  <input type="file" id="imgUpload" accept="image/*" multiple />
-  <div id="galleryContainer" style="display:flex; gap:10px; flex-wrap: wrap;"></div>
-</div>
+
+
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
   <h4>Admin Panel (unlock with "cheeto")</h4>
 </div>
@@ -392,51 +388,7 @@ voiceCmdBtn.onclick = () => {
 };
 
 };
- // Initialization in <script>
-let galleryImages = JSON.parse(localStorage.getItem('galleryImages') || '[]');
 
-const galleryContainer = document.getElementById('galleryContainer');
-const imgUpload = document.getElementById('imgUpload');
-
-function saveGallery() {
-  localStorage.setItem('galleryImages', JSON.stringify(galleryImages));
-}
-
-function renderGallery() {
-  galleryContainer.innerHTML = '';
-  galleryImages.forEach((src, i) => {
-    const img = document.createElement('img');
-    img.src = src;
-    img.style.width = '100px';
-    img.style.height = '100px';
-    img.style.objectFit = 'cover';
-    img.style.borderRadius = '8px';
-    img.style.cursor = 'pointer';
-    img.title = 'Click to remove';
-    img.onclick = () => {
-      galleryImages.splice(i, 1);
-      saveGallery();
-      renderGallery();
-    };
-    galleryContainer.appendChild(img);
-  });
-}
-
-imgUpload.addEventListener('change', e => {
-  const files = e.target.files;
-  Array.from(files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      galleryImages.push(reader.result);
-      saveGallery();
-      renderGallery();
-    };
-    reader.readAsDataURL(file);
-  });
-});
-
-renderGallery();
- 
   userInput.focus(); 
 </script>
 
