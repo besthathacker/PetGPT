@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PetGPT Ultimate</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; display: flex; font-family: Arial, sans-serif; background: #1e1e1e; color: white;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 280px; background: #222; display: flex; flex-direction: column; padding: 1rem; gap: 1rem;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.6);
+    }
+    #chatList {
+      flex-grow: 1; overflow-y: auto; border: 1px solid #444; border-radius: 6px; padding: 0.5rem;
+    }
+    .chatTab {
+      padding: 0.5rem; border-radius: 4px; cursor: pointer; user-select: none;
+      background: #333; margin-bottom: 0.3rem;
+      display: flex; justify-content: space-between; align-items: center;
+      color: #ccc;
+    }
+    .chatTab.active {
+      background: #007acc; color: white;
+      font-weight: bold;
+    }
+    .chatTab input {
+      background: #444; border: none; border-radius: 4px; color: white;
+      font-size: 1rem; width: 70%;
+      padding: 0.15rem 0.3rem;
+    }
+    .chatTab button.deleteBtn {
+      background: #a33; border: none; color: white; border-radius: 4px;
+      cursor: pointer; padding: 0.15rem 0.5rem;
+      font-weight: bold;
+    }
+    #newChatBtn {
+      background: #007acc; border: none; color: white; border-radius: 6px;
+      padding: 0.6rem 1rem; font-size: 1rem; cursor: pointer;
+      user-select: none;
+    }
+    #modelSelect, #personalitySelect {
+      width: 100%; padding: 0.5rem; border-radius: 6px; border: none;
+      background: #333; color: white; font-size: 1rem;
+    }
+    #fileInputLabel {
+      display: block; margin-top: 1rem; cursor: pointer;
+      background: #007acc; padding: 0.5rem; border-radius: 6px; text-align: center;
+      user-select: none;
+    }
+    #fileInput {
+      display: none;
+    }
+    #sidebar footer {
+      margin-top: auto; font-size: 0.8rem; color: #888; text-align: center;
+      user-select: none;
+    }
+
+    /* Chat area */
+    #chatContainer {
+      flex-grow: 1; display: flex; flex-direction: column; background: #2b2b2b;
+      overflow: hidden;
+    }
+    #chat {
+      flex-grow: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .message {
+      max-width: 70%; padding: 0.6rem 1rem; border-radius: 12px; word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .user {
+      background: #3a3a3a; align-self: flex-end; color: #eee;
+    }
+    .bot {
+      background: #007acc; align-self: flex-start; color: white;
+    }
+    #controls {
+      display: flex; padding: 0.75rem; background: #111; border-top: 1px solid #444;
+    }
+    #userInput {
+      flex-grow: 1; padding: 0.5rem 1rem; border-radius: 6px; border: none; font-size: 1rem;
+      background: #333; color: white;
+    }
+    #sendBtn {
+      background: #007acc; border: none; color: white; padding: 0 1.2rem; margin-left: 0.5rem;
+      border-radius: 6px; cursor: pointer;
+    }
+    #sendBtn:disabled {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    img.chat-image {
+      max-width: 100%; border-radius: 8px; margin-top: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+
+  <aside id="sidebar" role="navigation" aria-label="Chat sidebar">
+    <button id="newChatBtn" aria-label="New chat">+ New Chat</button>
+
+    <div id="chatList" aria-label="Chat list" role="list"></div>
+
+    <label for="modelSelect">Select AI Model:</label>
+    <select id="modelSelect" aria-label="AI model selector">
+      <option value="gpt2">GPT-2 Small (Local)</option>
+      <option value="deepai-textgen">DeepAI Text Generation (API)</option>
+    </select>
+
+    <label for="personalitySelect">Select Personality:</label>
+    <select id="personalitySelect" aria-label="Personality selector">
+      <option value="friendly">Friendly</option>
+      <option value="roast">Roast</option>
+    </select>
+
+    <label id="fileInputLabel" for="fileInput" aria-label="Upload file">📁 Upload File (PDF, image, code)</label>
+    <input type="file" id="fileInput" accept=".pdf,image/*,text/*,application/javascript,application/json,.js,.json,.py,.html,.css,.c,.cpp,.java,.ts,.jsx,.tsx" />
+
+    <footer>© 2025 PetGPT Ultimate</footer>
+  </aside>
+
+  <section id="chatContainer" aria-live="polite" aria-label="Chat messages">
+    <div id="chat"></div>
+    <div id="controls">
+      <input type="text" id="userInput" placeholder="Type your message..." aria-label="User message input" autocomplete="off" />
+      <button id="sendBtn" aria-label="Send message">Send</button>
+    </div>
+  </section>
+
+  <script type="module">
+    // Your DeepAI API key here:
+    const DEEPAI_API_KEY = '8c839b12-749b-46be-a333-404236941b8b';
+
+    // DOM elements
+    const chatList = document.getElementById('chatList');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const chatContainer = document.getElementById('chat');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const personalitySelect = document.getElementById('personalitySelect');
+    const fileInput = document.getElementById('fileInput');
+
+    // State
+    let chats = {};
+    let activeChatId = null;
+    let personality = localStorage.getItem('petgpt-personality') || 'friendly';
+    let model = localStorage.getItem('petgpt-model') || 'gpt2';
+    let localGPT2Pipeline = null;
+    let gpt2Loading = false;
+
+    // Save/load chats & settings
+    function saveChats() {
+      localStorage.setItem('petgpt-chats', JSON.stringify(chats));
+    }
+    function loadChats() {
+      const stored = localStorage.getItem('petgpt-chats');
+      chats = stored ? JSON.parse(stored) : {};
+    }
+    function saveActiveChat() {
+      localStorage.setItem('petgpt-active-chat', activeChatId);
+    }
+    function loadActiveChat() {
+      activeChatId = localStorage.getItem('petgpt-active-chat');
+      if (!activeChatId || !chats[activeChatId]) {
+        // Create new chat if none
+        createNewChat();
+      }
+    }
+    function savePersonality() {
+      localStorage.setItem('petgpt-personality', personality);
+    }
+    function saveModel() {
+      localStorage.setItem('petgpt-model', model);
+    }
+
+    // Create new chat
+    function createNewChat() {
+      const id = 'chat-' + Date.now();
+      chats[id] = { name: 'New Chat', messages: [] };
+      activeChatId = id;
+      saveChats();
+      saveActiveChat();
+      renderTabs();
+      renderMessages();
+    }
+
+    // Delete chat
+    function deleteChat(id) {
+      if (!chats[id]) return;
+      delete chats[id];
+      if (activeChatId === id) {
+        // Switch to another chat or create new
+        const keys = Object.keys(chats);
+        if (keys.length) {
+          activeChatId = keys[0];
+        } else {
+          createNewChat();
+          return;
+        }
+      }
+      saveChats();
+      saveActiveChat();
+      renderTabs();
+      renderMessages();
+    }
+
+    // Rename chat
+    function renameChat(id, newName) {
+      if (!chats[id]) return;
+      chats[id].name = newName.trim() || 'Unnamed Chat';
+      saveChats();
+      renderTabs();
+    }
+
+    // Render chat tabs
+    function renderTabs() {
+      chatList.innerHTML = '';
+      for (const [id, chatData] of Object.entries(chats)) {
+        const tab = document.createElement('div');
+        tab.className = 'chatTab' + (id === activeChatId ? ' active' : '');
+        tab.setAttribute('role', 'listitem');
+
+        // Editable name input
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = chatData.name;
+        nameInput.setAttribute('aria-label', 'Rename chat');
+        nameInput.addEventListener('change', () => renameChat(id, nameInput.value));
+
+        // Delete button
+        const delBtn = document.createElement('button');
+        delBtn.className = 'deleteBtn';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete chat';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`Delete chat "${chatData.name}"?`)) {
+            deleteChat(id);
+          }
+        });
+
+        tab.appendChild(nameInput);
+        tab.appendChild(delBtn);
+
+        // Click to activate chat
+        tab.addEventListener('click', () => {
+          activeChatId = id;
+          saveActiveChat();
+          renderTabs();
+          renderMessages();
+        });
+
+        chatList.appendChild(tab);
+      }
+    }
+
+    // Render messages for active chat
+    function renderMessages() {
+      chatContainer.innerHTML = '';
+      if (!activeChatId || !chats[activeChatId]) return;
+      for (const msg of chats[activeChatId].messages) {
+        appendMessage(msg.sender, msg.text, false);
+      }
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Append a message to chat and optionally save it
+    function appendMessage(sender, text, save = true) {
+      if (!text) return;
+      const div = document.createElement('div');
+      div.className = 'message ' + (sender === 'user' ? 'user' : 'bot');
+      div.textContent = text;
+
+      // If text contains image URLs, show images inline
+      if (sender === 'bot') {
+        // Quick image URL regex, basic
+        const urlRegex = /(https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp))/gi;
+        const urls = text.match(urlRegex);
+        if (urls) {
+          div.textContent = '';
+          for (const url of urls) {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = "Generated image";
+            img.className = 'chat-image';
+            div.appendChild(img);
+            div.appendChild(document.createElement('br'));
+          }
+        }
+      }
+
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      if (save && activeChatId && chats[activeChatId]) {
+        chats[activeChatId].messages.push({ sender, text });
+        saveChats();
+      }
+    }
+
+    // Load GPT-2 small model
+    async function loadGPT2() {
+      if (gpt2Loading) return;
+      gpt2Loading = true;
+      appendMessage('bot', 'Loading GPT-2 small model locally, please wait...');
+      try {
+        const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0/dist/transformers.min.js');
+        localGPT2Pipeline = await pipeline('text-generation', 'gpt2');
+        appendMessage('bot', 'GPT-2 small model loaded!');
+      } catch (e) {
+        console.error('Failed to load GPT-2:', e);
+        appendMessage('bot', 'Failed to load GPT-2 model, switching to DeepAI API.');
+        localGPT2Pipeline = null;
+        model = 'deepai-textgen';
+        modelSelect.value = 'deepai-textgen';
+        saveModel();
+      }
+      gpt2Loading = false;
+    }
+
+    // Generate text reply using selected model
+    async function generateReply(prompt) {
+      if (model === 'gpt2') {
+        if (!localGPT2Pipeline) {
+          await loadGPT2();
+          if (!localGPT2Pipeline) {
+            model = 'deepai-textgen';
+            modelSelect.value = 'deepai-textgen';
+            saveModel();
+          }
+        }
+        if (localGPT2Pipeline) {
+          try {
+            const output = await localGPT2Pipeline(prompt, {
+              max_new_tokens: 100,
+              temperature: 0.7,
+              top_k: 50,
+              top_p: 0.9,
+              repetition_penalty: 1.2,
+              stop: ['\n', '</s>'],
+            });
+            let reply = output[0].generated_text.replace(prompt, '').trim();
+            if (!reply) reply = "Sorry, I didn't understand that. Could you rephrase?";
+            return reply;
+          } catch (e) {
+            console.error('GPT-2 generation error:', e);
+            return "Sorry, something went wrong with the AI.";
+          }
+        }
+      }
+      if (model === 'deepai-textgen') {
+        try {
+          const res = await fetch('https://api.deepai.org/api/text-generator', {
+            method: 'POST',
+            headers: {
+              'api-key': DEEPAI_API_KEY,
+              'Accept': 'application/json',
+            },
+            body: new URLSearchParams({ text: prompt }),
+          });
+          const data = await res.json();
+          if (data.output) {
+            return data.output.trim();
+          } else {
+            return "Sorry, I couldn't generate a response.";
+          }
+        } catch (e) {
+          console.error('DeepAI text gen error:', e);
+          return "Error contacting DeepAI API.";
+        }
+      }
+      return "Selected AI model is not supported.";
+    }
+
+    // Handle user sending message
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      appendMessage('user', text);
+      userInput.value = '';
+      sendBtn.disabled = true;
+      userInput.disabled = true;
+
+      // Personality tweak example: roast or friendly
+      let prompt = text;
+      if (personality === 'roast') {
+        prompt = `You are a playful AI that roasts the user politely.\nUser: ${text}\nAI:`;
+      } else {
+        prompt = `You are a friendly helpful AI.\nUser: ${text}\nAI:`;
+      }
+
+      try {
+        const reply = await generateReply(prompt);
+        appendMessage('bot', reply);
+      } catch (e) {
+        appendMessage('bot', 'Sorry, an error occurred.');
+        console.error(e);
+      } finally {
+        sendBtn.disabled = false;
+        userInput.disabled = false;
+        userInput.focus();
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    modelSelect.value = model;
+    modelSelect.addEventListener('change', async (e) => {
+      model = e.target.value;
+      saveModel();
+      if (model === 'gpt2' && !localGPT2Pipeline) {
+        await loadGPT2();
+      }
+      appendMessage('bot', `Switched to model: ${model}`);
+    });
+
+    personalitySelect.value = personality;
+    personalitySelect.addEventListener('change', e => {
+      personality = e.target.value;
+      savePersonality();
+      appendMessage('bot', `Personality changed to: ${personality}`);
+    });
+
+    // File upload and processing
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      appendMessage('user', `Uploaded file: ${file.name}`);
+
+      // Detect file type & process accordingly
+      if (file.type.startsWith('image/')) {
+        // For images, we can display and optionally generate a description or transformation
+        const url = URL.createObjectURL(file);
+        appendMessage('bot', `Image uploaded: ${file.name}\n${url}`);
+
+        // Optionally, call DeepAI Image API (e.g., image-to-text or editing) here
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+          const res = await fetch('https://api.deepai.org/api/neuraltalk', {
+            method: 'POST',
+            headers: { 'api-key': DEEPAI_API_KEY },
+            body: formData
+          });
+          const data = await res.json();
+          if (data.output) {
+            appendMessage('bot', `Image description: ${data.output}`);
+          } else {
+            appendMessage('bot', 'Could not generate description for the image.');
+          }
+        } catch (e) {
+          console.error('DeepAI image API error:', e);
+          appendMessage('bot', 'Error contacting DeepAI image API.');
+        }
+      } else if (file.type === 'application/pdf') {
+        // PDF: try extract text and send to AI for summarizing or question answering
+        const reader = new FileReader();
+        reader.onload = async function() {
+          const textContent = reader.result;
+          appendMessage('bot', 'PDF content loaded, processing...');
+          // You could add AI summarization here, e.g.:
+          const summaryPrompt = `Summarize this PDF content:\n\n${textContent.slice(0, 3000)}`;
+          const summary = await generateReply(summaryPrompt);
+          appendMessage('bot', `Summary:\n${summary}`);
+        };
+        reader.readAsText(file);
+      } else {
+        // Assume text/code file
+        const reader = new FileReader();
+        reader.onload = async function() {
+          const textContent = reader.result;
+          appendMessage('bot', `Code/Text file content received, processing...`);
+          // You can ask AI to help with code review, explanation, or generation
+          const codePrompt = `Help me understand or improve this code:\n\n${textContent.slice(0, 3000)}`;
+          const helpReply = await generateReply(codePrompt);
+          appendMessage('bot', helpReply);
+        };
+        reader.readAsText(file);
+      }
+
+      // Reset file input for next upload
+      fileInput.value = '';
+    });
+
+    // Initialization
+    loadChats();
+    loadActiveChat();
+    renderTabs();
+    renderMessages();
+    personalitySelect.value = personality;
+    modelSelect.value = model;
+
+    if (model === 'gpt2') {
+      loadGPT2();
+    } else {
+      appendMessage('bot', 'Using DeepAI Text Generation API.');
+    }
+
+    userInput.focus();
+  </script>
+
+</body>
+</html>
