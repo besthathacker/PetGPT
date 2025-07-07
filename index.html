@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head><meta charset="UTF-8"><title>Test GPT-2 Load</title></head>
+<body>
+  <div id="status">Loading GPT-2 model...</div>
+  <script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.3.0/dist/transformers.js";
+    const status = document.getElementById('status');
+
+    async function testLoad() {
+      try {
+        const generator = await pipeline('text-generation', 'Xenova/gpt-2');
+        status.textContent = 'Model loaded successfully!';
+        const output = await generator('Hello world', { max_new_tokens: 10 });
+        status.textContent += ' Generated text: ' + output[0].generated_text;
+      } catch (e) {
+        status.textContent = 'Error loading model: ' + e.message;
+        console.error(e);
+      }
+    }
+    testLoad();
+  </script>
+</body>
+</html>
