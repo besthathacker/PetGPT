@@ -9,7 +9,7 @@
 
     async function testLoad() {
       try {
-        const generator = await pipeline('text-generation', 'Xenova/gpt-2');
+        const generator = await pipeline('text-generation', 'gpt-2');
         status.textContent = 'Model loaded successfully!';
         const output = await generator('Hello world', { max_new_tokens: 10 });
         status.textContent += ' Generated text: ' + output[0].generated_text;
