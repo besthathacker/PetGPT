@@ -105,25 +105,31 @@
 <div id="chat" aria-live="polite" aria-label="Chat messages"></div>
 
 <div id="controls">
-  <input type="text" id="userInput" placeholder="Say something..." />
-  <button id="sendBtn" oneclick="sendMessage()">send</button>
-  <button id="voiceCmdBtn">🎤 Voice Command</button>
-  <div id="publicFeatures">
-    <button onclick="playRPS()">🪨📄✂️ RPS</button>
-    <button onclick="dailyFortune()">🔮 Fortune</button>
-    <label><input type="checkbox" id="arModeToggle" /> 📷 AR Mode</label>
-    <select id="personalitySelect">
-      <option value="friendly">😊 Friendly</option>
-      <option value="funny">🤣 Funny</option>
-      <option value="roasty">🔥 Roasty</option>
-    </select>
-  </div>
+  <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
+  <button id="sendBtn" aria-label="Send message" type="button">Send</button>
 </div>
-
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
   <h4>Admin Panel (unlock with "cheeto")</h4>
+  <h4>🎮 Match Game</h4>
+  <div id="matchScore" style="color:#8f8;">Score:0 | Best:0</div>
+  <div class="grid" id="matchGrid"></div>
+
+  <h4>🃏 Solitaire</h4>
+  <div id="solScore" style="color:#88f;">Score:0 | Best:0</div>
+  <div class="solitaire" id="solBoard"></div>
+
+  <h4>🧪 Dr. Mario Pill-Swap</h4>
+  <div id="drScore" style="color:#fa0;">Score:0 | Best:0</div>
+  <div class="drgrid" id="drGrid"></div>
+  
+  <button id="drToggle">▶️ Play Theme</button>
+  <audio id="drAudio" loop>
+      <source src="https://actions.google.com/sounds/v1/video_game/atari_breakout_theme.ogg" type="audio/ogg" />
+    </audio>
+  <label>Background Color: <input type="color" id="bgPicker" aria-label="Background color picker" /></label>
 </div>
+
 <footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
@@ -189,8 +195,8 @@ async function performDuckDuckGoInstantAnswer(query) {
     return "🌐 Web search failed or blocked by CORS policy.";
   }
 }
-  
-async function getReply(text) {
+ 
+  async function getReply(text) {
   // Your existing logic for memory and dictionary...
 
   // Example snippet for question detection & web search
@@ -228,7 +234,7 @@ async function sendMessage() {
 
   try {
     const reply = await getReply(txt);
-    appendMessage("PetGPT: " + applyPersonality(reply), 'bot');
+    appendMessage("PetGPT: " + reply, 'bot');
   } catch (err) {
     appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
     console.error(err);
@@ -236,9 +242,48 @@ async function sendMessage() {
     userInput.disabled = false;
     sendBtn.disabled = false;
     userInput.focus();
+  } 
+
+
+    if (t.includes('cheeto')) {
+      adminPanel.style.display = 'block';
+      adminPanel.setAttribute('aria-hidden', 'false');
+      return "Admin unlocked!";
+    }
+
+    for (const key in extendedDictionary) {
+      if (t.includes(key)) return extendedDictionary[key];
+    }
+
+    if (gptReady && generator) {
+      try {
+        const fullPrompt = SYSTEM_PROMPT + text;
+        const output = await generator(fullPrompt, {
+          max_new_tokens: 60,
+          temperature: 0.7,
+          top_p: 0.9,
+          repetition_penalty: 1.1,
+        });
+
+        let generated = output[0].generated_text;
+        let reply = generated.slice(fullPrompt.length).trim();
+
+        // fallback if GPT-2 output is weird
+        if (!reply || reply.toLowerCase().startsWith(text.toLowerCase())) {
+          reply = "Sorry, I didn't quite understand that. Can you try rephrasing?";
+        }
+
+        return reply;
+      } catch (e) {
+        console.error('GPT-2 generation error:', e);
+        return "Sorry, something went wrong with the AI.";
+      }
+    }
+
+    return "Sorry, I can't respond right now.";
   }
-}
-  
+
+
   sendBtn.addEventListener('click', sendMessage);
   userInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
@@ -247,149 +292,137 @@ async function sendMessage() {
     }
   });
 
+  bgPicker.addEventListener('input', e => {
+    document.body.style.background = e.target.value;
+  });
 
-  appendMessage("Loading PetGPT... Please wait.", "bot");
+  appendMessage("Loading GPT-2 AI model... Please wait.", "bot");
   (async () => {
     try {
       generator = await pipeline('text-generation', 'Xenova/gpt2');
       gptReady = true;
-      appendMessage("PetGPT is ready!", "bot");
+      appendMessage("GPT-2 AI model loaded!", "bot");
     } catch (e) {
-      appendMessage("Failed to load PetGPT.", "bot");
+      appendMessage("Failed to load GPT-2 model.", "bot");
       console.error(e);
-      applyThemeDay();
     }
   })();
-  function playRPS() {
-  const choices = ["rock", "paper", "scissors"];
-  const userInput = prompt("Rock, Paper, or Scissors?");
-  if (!userInput) return;
-
-  const user = userInput.trim().toLowerCase();
-  const bot = choices[Math.floor(Math.random() * 3)];
-  let result = "";
-
-  if (!choices.includes(user)) {
-    appendMessage("❓ Invalid choice. Please enter rock, paper, or scissors.", 'bot');
-    return;
+  // --- Match Game ---
+  let mBoard, mSel = null, mPts = 0, mBest = +localStorage.getItem('m_best') || 0;
+  function genMatch() {
+    const emojis = ['🍎', '🍊', '🍇', '🍒', '🍋', '🍉'];
+    const pool = [];
+    for (let i = 0; i < 36; i++) pool.push(emojis[i % 6]);
+    pool.sort(() => Math.random() - 0.5);
+    mPts = 0;
+    matchGrid.innerHTML = '';
+    mBoard = [];
+    for (let r = 0; r < 6; r++) {
+      mBoard[r] = [];
+      for (let c = 0; c < 6; c++) {
+        const v = pool.pop();
+        const d = document.createElement('div');
+        d.className = 'tile';
+        d.textContent = v;
+        d.onclick = () => swapMatch(r, c, d);
+        matchGrid.appendChild(d);
+        mBoard[r][c] = v;
+      }
+    }
+    updateMatch();
+  }
+  function swapMatch(r, c, d) {
+    if (!mSel) {
+      mSel = { r, c, d };
+      d.classList.add('selected');
+    } else {
+      const { r: r2, c: c2, d: d2 } = mSel;
+      if (Math.abs(r - r2) + Math.abs(c - c2) === 1) {
+        [mBoard[r][c], mBoard[r2][c2]] = [mBoard[r2][c2], mBoard[r][c]];
+        d2.classList.remove('selected');
+        mSel = null;
+        genMatch();
+        mPts += 10;
+        if (mPts > mBest) localStorage.setItem('m_best', mPts);
+        updateMatch();
+      } else {
+        d2.classList.remove('selected');
+        mSel = null;
+      }
+    }
+  }
+  function updateMatch() {
+    mBest = +localStorage.getItem('m_best') || 0;
+    matchScore.textContent = `Score:${mPts} | Best:${mBest}`;
   }
 
-  if (user === bot) {
-    result = "It's a draw!";
-  } else if (
-    (user === "rock" && bot === "scissors") ||
-    (user === "paper" && bot === "rock") ||
-    (user === "scissors" && bot === "paper")
-  ) {
-    result = "You win!";
-  } else {
-    result = "PetGPT wins!";
+  // --- Solitaire ---
+  let sPts = 0, sBest = +localStorage.getItem('s_best') || 0;
+  function genSol() {
+    solBoard.innerHTML = '';
+    sPts = 0;
+    const suits = ['♠', '♥', '♦', '♣'];
+    const vals = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const deck = [];
+    suits.forEach(s => vals.forEach(v => deck.push({ s, v })));
+    deck.sort(() => Math.random() - 0.5);
+    for (let i = 0; i < 24; i++) {
+      const c = deck[i];
+      const e = document.createElement('div');
+      e.className = 'card' + ((c.s === '♥' || c.s === '♦') ? ' red' : '');
+      e.textContent = c.v + c.s;
+      e.onclick = () => {
+        sPts += 5;
+        if (sPts > sBest) localStorage.setItem('s_best', sPts);
+        updateSol();
+      };
+      solBoard.appendChild(e);
+    }
+    updateSol();
+  }
+  function updateSol() {
+    sBest = +localStorage.getItem('s_best') || 0;
+    solScore.textContent = `Score:${sPts} | Best:${sBest}`;
   }
 
-  appendMessage(`🎮 You chose ${user}, PetGPT chose ${bot}. ${result}`, 'bot');
-}
-
-  let arStream = null;
-let arVideo = null;
-
-document.getElementById('arModeToggle').addEventListener('change', function () {
-  if (this.checked) {
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-      arStream = stream;
-
-      arVideo = document.createElement('video');
-      arVideo.srcObject = stream;
-      arVideo.autoplay = true;
-      arVideo.style.width = "100%";
-      arVideo.id = "arVideo";
-
-      document.body.appendChild(arVideo);
-      appendMessage("📷 AR Mode enabled. Camera activated.", 'bot');
-    }).catch(() => appendMessage("Camera access denied or not available.", 'bot'));
-  } else {
-    if (arStream) {
-      arStream.getTracks().forEach(track => track.stop());
-      arStream = null;
-    }
-    if (arVideo) {
-      arVideo.remove();
-      arVideo = null;
-    }
-    appendMessage("📷 AR Mode disabled.", 'bot');
-  }
-});
-
-  let personality = 'friendly';
-  document.getElementById('personalitySelect').onchange = e => {
-    personality = e.target.value;
+  // --- Dr. Mario ---
+  let dPts = 0, dBest = +localStorage.getItem('d_best') || 0;
+  function genDr() {
+    drGrid.innerHTML = '';
+    dPts = 0;
+    const colors = ['🔴', '🟡', '🔵'];
+    const pool = [];
+    for (let i = 0; i < 36; i++) pool.push(colors[i % 3]);
+    pool.sort(() => Math.random() - 0.5);
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) {
+      const v = pool.pop();
+      const e = document.createElement('div');
+      e.className = 'drtile';
+      e.textContent = v;
+      e.onclick = () => {
+        dPts += 15;
+        if (dPts > dBest) localStorage.setItem('d_best', dPts);
+        updateDr();
+      };
+      drGrid.appendChild(e);
+    }
+    updateDr();
+  }
+  function updateDr() {
+    dBest = +localStorage.getItem('d_best') || 0;
+    drScore.textContent = `Score:${dPts} | Best:${dBest}`;
+  }
+  drToggle.onclick = () => {
+    if (drAudio.paused) {
+      drAudio.play();
+      drToggle.textContent = '⏸️ Pause';
+    } else {
+      drAudio.pause();
+      drToggle.textContent = '▶️ Play';
+    }
   };
 
-  function applyPersonality(text) {
-    if (personality === 'funny') return text + " 😂";
-    if (personality === 'roasty') return "🔥 Roasted: " + text;
-    return text;
-  }
-  function dailyFortune() {
-    const fortunes = [
-      "A great surprise is waiting for you!",
-      "Your curiosity will lead you to success.",
-      "Beware of unexpected messages.",
-      "A cat will bring you joy today.",
-      "Stay true to your path — it's working."
-    ];
-    const lucky = Math.floor(Math.random() * 100);
-    const sign = ["♈ Aries", "♉ Taurus", "♊ Gemini", "♋ Cancer", "♌ Leo", "♍ Virgo"][new Date().getDay()];
-    appendMessage(`🌠 Horoscope: ${sign}\n${fortunes[Math.floor(Math.random() * fortunes.length)]}\nLucky number: ${lucky}`, 'bot');
-  }
-  function applyThemeDay() {
-    const day = new Date().getDay();
-    const themes = {
-      1: "😺 Meow Monday: Expect cat puns!",
-      2: "🎮 Game Tuesday: Let's play!",
-      3: "🌱 Wisdom Wednesday: Ask me deep stuff.",
-      4: "🎨 Artsy Thursday: Share your creativity!",
-      5: "😜 Fun Friday: Silly PetGPT activated.",
-      6: "🌈 Chill Saturday: I'm relaxed.",
-      0: "💡 Smart Sunday: Big brain time!"
-    };
-    appendMessage(themes[day], 'bot');
-  }
- window.playRPS = playRPS;
- window.dailyFortune = dailyFortune
-const voiceCmdBtn = document.getElementById('voiceCmdBtn');
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition;
-
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.continuous = false;
-  recognition.lang = 'en-US';
-
-  recognition.onresult = (event) => {
-    const speech = event.results[0][0].transcript.toLowerCase();
-    appendMessage(`🎙️ You said: "${speech}"`, 'user');
-
-    // Simple command matching example:
-    if (speech.includes('play rock paper scissors')) playRPS();
-    else if (speech.includes('daily fortune')) dailyFortune();
-    else if (speech.includes('clear doodle')) document.getElementById('clearDoodle').click();
-    else appendMessage("Sorry, I didn't recognize that voice command.", 'bot');
-  };
-
-  recognition.onerror = (e) => {
-    appendMessage(`Voice recognition error: ${e.error}`, 'bot');
-  };
-} else {
-  appendMessage("Voice recognition not supported in this browser.", 'bot');
-}
-
-voiceCmdBtn.onclick = () => {
-  if (recognition) recognition.start();
-};
-
-};
-
-  userInput.focus(); 
+  userInput.focus();
 </script>
 
 </body>
