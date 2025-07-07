@@ -101,8 +101,8 @@
   </div>
 
   <script type="module">
-    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.js";
-    import { pipeline as diffusersPipeline } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers/dist/diffusers.js";
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers";
+    import { pipeline as diffusersPipeline } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers/dist/diffusers";
 
     let generator;
     let memory = JSON.parse(localStorage.getItem("petgpt_memory") || "[]");
