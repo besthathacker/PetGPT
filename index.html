@@ -2,194 +2,360 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="theme-color" content="#111"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PetGPT Ultimate</title>
-  <link rel="manifest" href="manifest.json">
   <style>
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      background: #111;
-      color: #fff;
       font-family: Arial, sans-serif;
+      background: #1e1e1e;
+      color: white;
+      margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
       height: 100vh;
     }
-    #chat {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1em;
+    header, footer {
+      background: #007acc;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
     }
-    .msg {
-      margin-bottom: 1em;
+    #chat {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 10px;
+      background: #2b2b2b;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .message {
+      max-width: 75%;
+      padding: 8px 12px;
+      border-radius: 6px;
       word-wrap: break-word;
     }
-    .msg strong {
-      color: #66f;
+    .user {
+      background: #3a3a3a;
+      align-self: flex-end;
+    }
+    .bot {
+      background: #007acc;
+      align-self: flex-start;
     }
     #controls {
+      flex-shrink: 0;
+      background: #111;
+      border-top: 1px solid #444;
       display: flex;
-      padding: 0.5em;
-      background: #222;
+      padding: 10px;
+      gap: 6px;
+      align-items: center;
     }
-    #prompt {
-      flex: 1;
-      padding: 0.5em;
-      background: #333;
+    #userInput {
+      flex: 1 1 auto;
+      padding: 8px;
+      border-radius: 4px;
       border: none;
-      color: #fff;
+      background: #333;
+      color: #eee;
+      font-size: 1rem;
+    }
+    #userInput::placeholder {
+      color: #aaa;
     }
     button {
-      margin-left: 0.5em;
-      padding: 0.5em;
-      background: #444;
+      background: #007acc;
       border: none;
-      color: #fff;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
       cursor: pointer;
+      flex-shrink: 0;
     }
     button:disabled {
       opacity: 0.5;
+      cursor: not-allowed;
     }
-    input[type="file"] {
+    #adminPanel {
       display: none;
+      background: #333;
+      padding: 10px;
+      border-top: 2px solid #007acc;
+      font-size: 0.9rem;
+      overflow-y: auto;
+      max-height: 200px;
     }
-    img.preview {
+    #adminPanel h4 {
+      margin: 0.5rem 0 0.25rem 0;
+    }
+    #adminPanel label {
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+    /* New styles for image gen UI */
+    #imageGenSection {
+      background: #222;
+      border-top: 1px solid #444;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #imagePrompt {
+      width: 100%;
+      padding: 8px;
+      font-size: 1rem;
+      border-radius: 4px;
+      border: none;
+      background: #333;
+      color: #eee;
+    }
+    #generateImageBtn {
+      align-self: flex-start;
+      background: #007acc;
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #generateImageBtn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #generatedImage {
       max-width: 100%;
-      margin-top: 0.5em;
       border-radius: 6px;
+      margin-top: 10px;
+      box-shadow: 0 0 10px #007acc88;
+      align-self: center;
     }
   </style>
 </head>
 <body>
-<div id="chat">
-  <div class="msg"><strong>System:</strong> Loading GPT-2...</div>
-</div>
+
+<header>PetGPT Ultimate</header>
+
+<div id="chat" aria-live="polite" aria-label="Chat messages"></div>
 
 <div id="controls">
-  <input id="prompt" type="text" placeholder="Say something..." />
-  <button id="send" disabled>Send</button>
-  <button id="gen-img">🎨</button>
-  <button id="upload">📷</button>
+  <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
+  <button id="sendBtn" aria-label="Send message" type="button">Send</button>
 </div>
-<input type="file" id="file" accept="image/*" />
+
+<!-- Image generation UI -->
+<div id="imageGenSection" aria-label="Image generation section">
+  <input id="imagePrompt" type="text" placeholder="Enter prompt for image generation..." aria-label="Image generation prompt" />
+  <button id="generateImageBtn" type="button" aria-label="Generate image from prompt" disabled>Generate Image</button>
+  <img id="generatedImage" alt="Generated image will appear here" />
+</div>
+
+<div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
+  <h4>Admin Panel (unlock with "cheeto")</h4>
+  <h4>🎮 Match Game</h4>
+  <div id="matchScore" style="color:#8f8;">Score:0 | Best:0</div>
+  <div class="grid" id="matchGrid"></div>
+
+  <h4>🃏 Solitaire</h4>
+  <div id="solScore" style="color:#88f;">Score:0 | Best:0</div>
+  <div class="solitaire" id="solBoard"></div>
+
+  <h4>🧪 Dr. Mario Pill-Swap</h4>
+  <div id="drScore" style="color:#fa0;">Score:0 | Best:0</div>
+  <div class="drgrid" id="drGrid"></div>
+  
+  <button id="drToggle">▶️ Play Theme</button>
+  <audio id="drAudio" loop>
+      <source src="https://actions.google.com/sounds/v1/video_game/atari_breakout_theme.ogg" type="audio/ogg" />
+    </audio>
+  <label>Background Color: <input type="color" id="bgPicker" aria-label="Background color picker" /></label>
+</div>
+
+<footer>© 2025 PetGPT Ultimate</footer>
 
 <script type="module">
-  import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0/transformers";
-  import { DiffusionPipeline } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers/diffusers";
+  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0';
+  import { StableDiffusionPipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/diffusers@0.14.1';
 
-  const chat = document.getElementById("chat");
-  const promptEl = document.getElementById("prompt");
-  const sendBtn = document.getElementById("send");
-  const imgBtn = document.getElementById("gen-img");
-  const fileBtn = document.getElementById("upload");
-  const fileInput = document.getElementById("file");
+  const chat = document.getElementById('chat');
+  const userInput = document.getElementById('userInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const adminPanel = document.getElementById('adminPanel');
+  const bgPicker = document.getElementById('bgPicker');
 
-  let gpt = null;
-  let diffuser = null;
+  const imagePromptInput = document.getElementById('imagePrompt');
+  const generateImageBtn = document.getElementById('generateImageBtn');
+  const generatedImage = document.getElementById('generatedImage');
 
-  function appendMsg(sender, text, img=null) {
-    const div = document.createElement("div");
-    div.className = "msg";
-    div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-    if (img) {
-      const image = document.createElement("img");
-      image.src = img;
-      image.className = "preview";
-      div.appendChild(image);
-    }
-    chat.appendChild(div);
+  let generator, gptReady = false;
+  let sdPipeline, sdReady = false;
+
+  function appendMessage(text, cls = 'bot') {
+    const msg = document.createElement('div');
+    msg.className = 'message ' + cls;
+    msg.textContent = text;
+    chat.appendChild(msg);
     chat.scrollTop = chat.scrollHeight;
   }
 
-  async function loadGPT() {
-    appendMsg("System", "Loading GPT-2...");
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      gpt = await pipeline("text-generation", "Xenova/gpt2", { signal: controller.signal });
-      clearTimeout(timeout);
-      appendMsg("System", "✅ GPT-2 loaded");
-      sendBtn.disabled = false;
-    } catch (e) {
-      appendMsg("System", "❌ GPT-2 failed to load. Refresh or try later.");
-      console.error("GPT load error:", e);
-    }
+  function saveMemory() {
+    localStorage.setItem('petgpt-memory', JSON.stringify(memory));
   }
 
-  async function loadImageModel() {
-    appendMsg("System", "🎨 Loading image model...");
+  // --- GPT-2 Text Generation Setup ---
+  (async () => {
+    appendMessage("Loading GPT-2 AI model... Please wait.", "bot");
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      diffuser = await DiffusionPipeline.from_pretrained(
-        "Xenova/stable-diffusion",
-        { signal: controller.signal }
-      );
-      clearTimeout(timeout);
-      appendMsg("System", "✅ Image model loaded");
-    } catch (err) {
-      appendMsg("System", "⚠️ Image model failed. Tap 🎨 to retry.");
-      console.error("Image model load error:", err);
-    }
-  }
-
-  sendBtn.onclick = async () => {
-    const text = promptEl.value.trim();
-    if (!text || !gpt) return;
-    appendMsg("You", text);
-    promptEl.value = "";
-    try {
-      const result = await gpt(text, { max_new_tokens: 50 });
-      appendMsg("PetGPT", result[0].generated_text);
+      generator = await pipeline('text-generation', 'Xenova/gpt2');
+      gptReady = true;
+      appendMessage("GPT-2 AI model loaded!", "bot");
+      generateImageBtn.disabled = false;  // enable image gen button only after models ready
     } catch (e) {
-      appendMsg("PetGPT", "⚠️ Error generating response.");
+      appendMessage("Failed to load GPT-2 model.", "bot");
+      console.error(e);
     }
-  };
+  })();
 
-  imgBtn.onclick = async () => {
-    const text = promptEl.value.trim();
-    if (!text) return appendMsg("System", "Enter a prompt first.");
-    appendMsg("You", `🎨 ${text}`);
-    promptEl.value = "";
-    if (!diffuser) {
-      appendMsg("System", "Trying to load image model again...");
-      await loadImageModel();
-      if (!diffuser) return;
-    }
+  // --- Stable Diffusion Pipeline Setup ---
+  (async () => {
     try {
-      const result = await diffuser(text);
-      const url = await result.image.toDataURL();
-      appendMsg("PetGPT", "Here's your image:", url);
+      sdPipeline = await StableDiffusionPipeline.fromPretrained('stabilityai/stable-diffusion-2', {
+        progress_callback: (progress) => {
+          generateImageBtn.textContent = `Loading model... ${Math.round(progress * 100)}%`;
+        }
+      });
+      await sdPipeline.enableSafetyChecker();
+      sdReady = true;
+      generateImageBtn.disabled = false;
+      generateImageBtn.textContent = "Generate Image";
+      appendMessage("Stable Diffusion model loaded!", "bot");
+    } catch (e) {
+      appendMessage("Failed to load Stable Diffusion model.", "bot");
+      console.error(e);
+      generateImageBtn.textContent = "Generate Image (model load failed)";
+    }
+  })();
+
+  // --- Image generation handler ---
+  generateImageBtn.addEventListener('click', async () => {
+    const prompt = imagePromptInput.value.trim();
+    if (!prompt) {
+      alert("Please enter a prompt for image generation.");
+      return;
+    }
+    generateImageBtn.disabled = true;
+    generateImageBtn.textContent = "Generating...";
+    generatedImage.src = ''; // clear old image
+
+    try {
+      if (!sdReady) throw new Error("Stable Diffusion model not ready");
+
+      // Generate image tensor from prompt
+      const output = await sdPipeline(prompt, {
+        height: 512,
+        width: 512,
+        num_inference_steps: 25,
+        guidance_scale: 7.5
+      });
+
+      // Convert tensor image to base64 PNG
+      const blob = await output.image.toBlob('image/png');
+      const url = URL.createObjectURL(blob);
+      generatedImage.src = url;
+
+      appendMessage(`Image generated for prompt: "${prompt}"`, 'bot');
     } catch (err) {
-      appendMsg("PetGPT", "⚠️ Image generation failed.");
+      appendMessage("Failed to generate image.", 'bot');
       console.error(err);
+    } finally {
+      generateImageBtn.disabled = false;
+      generateImageBtn.textContent = "Generate Image";
     }
-  };
+  });
 
-  fileBtn.onclick = () => fileInput.click();
+  // --- Chat message sending ---
+  async function getReply(message) {
+    // simplified version for demo - you can keep your own getReply logic here
+    if (!gptReady) return "GPT-2 model is loading, please wait...";
 
-  fileInput.onchange = () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      appendMsg("You", `📎 ${file.name}`, e.target.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  loadGPT();
-  loadImageModel();
-</script>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').then(() => {
-      console.log("✅ Service Worker registered");
-    }).catch(console.error);
+    try {
+      const output = await generator(message, {
+        max_new_tokens: 100,
+        temperature: 0.7,
+        top_k: 50,
+        top_p: 0.9,
+        repetition_penalty: 1.2,
+        stop: ["\n", "</s>"]
+      });
+      const generated = output[0].generated_text;
+      const reply = generated.slice(message.length).trim();
+      if (!reply) return "Sorry, I didn't quite get that. Can you rephrase?";
+      return reply;
+    } catch (e) {
+      console.error("GPT-2 generation error:", e);
+      return "Sorry, something went wrong with the AI.";
+    }
   }
+
+  async function sendMessage() {
+    const txt = userInput.value.trim();
+    if (!txt) return;
+
+    appendMessage("You: " + txt, 'user');
+    userInput.value = '';
+    userInput.disabled = true;
+    sendBtn.disabled = true;
+
+    try {
+      const reply = await getReply(txt);
+      appendMessage("PetGPT: " + reply, 'bot');
+    } catch (err) {
+      appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
+      console.error(err);
+    } finally {
+      userInput.disabled = false;
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  userInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  bgPicker.addEventListener('input', e => {
+    document.body.style.background = e.target.value;
+  });
+
+  // --- Admin panel and games code unchanged, omitted here for brevity ---
+  // (You can keep your existing game code as is.)
+
+  let keyBuffer = "";
+  document.addEventListener("keydown", function (e) {
+    if (e.key.length === 1) {
+      keyBuffer += e.key;
+      if (keyBuffer.length > 20) keyBuffer = keyBuffer.slice(-20);
+
+      if (keyBuffer.toLowerCase().includes("cheeto")) {
+        if (adminPanel) {
+          adminPanel.style.display = adminPanel.style.display === "block" ? "none" : "block";
+          adminPanel.setAttribute('aria-hidden', adminPanel.style.display === "block" ? "false" : "true");
+        }
+        keyBuffer = "";
+      }
+    }
+  });
+
+  userInput.focus();
 </script>
+
 </body>
 </html>
