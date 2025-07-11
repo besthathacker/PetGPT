@@ -45,6 +45,13 @@
     .bot {
       background: #007acc;
       align-self: flex-start;
+      white-space: pre-wrap;
+    }
+    .bot img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 6px;
+      display: block;
     }
     #controls {
       flex-shrink: 0;
@@ -96,44 +103,6 @@
       display: block;
       margin-bottom: 0.75rem;
     }
-    /* New styles for image gen UI */
-    #imageGenSection {
-      background: #222;
-      border-top: 1px solid #444;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    #imagePrompt {
-      width: 100%;
-      padding: 8px;
-      font-size: 1rem;
-      border-radius: 4px;
-      border: none;
-      background: #333;
-      color: #eee;
-    }
-    #generateImageBtn {
-      align-self: flex-start;
-      background: #007acc;
-      border: none;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #generateImageBtn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    #generatedImage {
-      max-width: 100%;
-      border-radius: 6px;
-      margin-top: 10px;
-      box-shadow: 0 0 10px #007acc88;
-      align-self: center;
-    }
   </style>
 </head>
 <body>
@@ -143,15 +112,8 @@
 <div id="chat" aria-live="polite" aria-label="Chat messages"></div>
 
 <div id="controls">
-  <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" />
-  <button id="sendBtn" aria-label="Send message" type="button">Send</button>
-</div>
-
-<!-- Image generation UI -->
-<div id="imageGenSection" aria-label="Image generation section">
-  <input id="imagePrompt" type="text" placeholder="Enter prompt for image generation..." aria-label="Image generation prompt" />
-  <button id="generateImageBtn" type="button" aria-label="Generate image from prompt" disabled>Generate Image</button>
-  <img id="generatedImage" alt="Generated image will appear here" />
+  <input id="userInput" type="text" placeholder="Type your message..." autocomplete="off" aria-label="User input" disabled />
+  <button id="sendBtn" aria-label="Send message" type="button" disabled>Send</button>
 </div>
 
 <div id="adminPanel" aria-hidden="true" aria-label="Admin panel">
@@ -187,118 +149,134 @@
   const adminPanel = document.getElementById('adminPanel');
   const bgPicker = document.getElementById('bgPicker');
 
-  const imagePromptInput = document.getElementById('imagePrompt');
-  const generateImageBtn = document.getElementById('generateImageBtn');
-  const generatedImage = document.getElementById('generatedImage');
-
   let generator, gptReady = false;
   let sdPipeline, sdReady = false;
 
-  function appendMessage(text, cls = 'bot') {
+  const extendedDictionary = {
+    hello: "Hey! I'm here to help. What's up?",
+    hi: "Hello! How can I assist you today?",
+    hey: "Hey there! Need something?",
+    bye: "Goodbye! Come back soon!",
+    thanks: "You're welcome!",
+    thank: "No problem!",
+    joke: "Why did the computer show up at work late? It had a hard drive!",
+    help: "I'm here to help! Just type your question.",
+    name: "I'm PetGPT Ultimate, your AI companion!",
+    weather: "I can't check the weather, but I hope it's nice where you are!",
+    love: "I love chatting with you!",
+    sorry: "No worries, we're all learning here.",
+    cheeto: "Admin panel unlocked!"
+  };
+
+  function appendMessage(text, cls = 'bot', html = false) {
     const msg = document.createElement('div');
     msg.className = 'message ' + cls;
-    msg.textContent = text;
+    if (html) {
+      msg.innerHTML = text;
+    } else {
+      msg.textContent = text;
+    }
     chat.appendChild(msg);
     chat.scrollTop = chat.scrollHeight;
   }
 
-  function saveMemory() {
-    localStorage.setItem('petgpt-memory', JSON.stringify(memory));
-  }
-
-  // --- GPT-2 Text Generation Setup ---
-  (async () => {
+  // Load GPT-2 model and enable chat UI
+  async function loadGPT2() {
     appendMessage("Loading GPT-2 AI model... Please wait.", "bot");
     try {
       generator = await pipeline('text-generation', 'Xenova/gpt2');
       gptReady = true;
       appendMessage("GPT-2 AI model loaded!", "bot");
-      generateImageBtn.disabled = false;  // enable image gen button only after models ready
+      sendBtn.disabled = false;
+      userInput.disabled = false;
+      userInput.focus();
     } catch (e) {
       appendMessage("Failed to load GPT-2 model.", "bot");
       console.error(e);
     }
-  })();
+  }
 
-  // --- Stable Diffusion Pipeline Setup ---
-  (async () => {
+  // Load Stable Diffusion model independently
+  async function loadStableDiffusion() {
     try {
-      sdPipeline = await StableDiffusionPipeline.fromPretrained('stabilityai/stable-diffusion-2', {
-        progress_callback: (progress) => {
-          generateImageBtn.textContent = `Loading model... ${Math.round(progress * 100)}%`;
-        }
-      });
+      appendMessage("Loading Stable Diffusion image model... Please wait.", "bot");
+      sdPipeline = await StableDiffusionPipeline.fromPretrained('stabilityai/stable-diffusion-2');
       await sdPipeline.enableSafetyChecker();
       sdReady = true;
-      generateImageBtn.disabled = false;
-      generateImageBtn.textContent = "Generate Image";
       appendMessage("Stable Diffusion model loaded!", "bot");
     } catch (e) {
       appendMessage("Failed to load Stable Diffusion model.", "bot");
       console.error(e);
-      generateImageBtn.textContent = "Generate Image (model load failed)";
     }
-  })();
+  }
 
-  // --- Image generation handler ---
-  generateImageBtn.addEventListener('click', async () => {
-    const prompt = imagePromptInput.value.trim();
-    if (!prompt) {
-      alert("Please enter a prompt for image generation.");
-      return;
-    }
-    generateImageBtn.disabled = true;
-    generateImageBtn.textContent = "Generating...";
-    generatedImage.src = ''; // clear old image
+  loadGPT2();
+  loadStableDiffusion();
 
-    try {
-      if (!sdReady) throw new Error("Stable Diffusion model not ready");
-
-      // Generate image tensor from prompt
-      const output = await sdPipeline(prompt, {
-        height: 512,
-        width: 512,
-        num_inference_steps: 25,
-        guidance_scale: 7.5
-      });
-
-      // Convert tensor image to base64 PNG
-      const blob = await output.image.toBlob('image/png');
-      const url = URL.createObjectURL(blob);
-      generatedImage.src = url;
-
-      appendMessage(`Image generated for prompt: "${prompt}"`, 'bot');
-    } catch (err) {
-      appendMessage("Failed to generate image.", 'bot');
-      console.error(err);
-    } finally {
-      generateImageBtn.disabled = false;
-      generateImageBtn.textContent = "Generate Image";
-    }
-  });
-
-  // --- Chat message sending ---
   async function getReply(message) {
-    // simplified version for demo - you can keep your own getReply logic here
-    if (!gptReady) return "GPT-2 model is loading, please wait...";
+    const rudeWords = [
+      "stupid", "idiot", "dumb", "hate you", "shut up", "go away",
+      "useless", "worthless", "annoying", "nobody likes", "you're bad",
+      "kill", "die", "ugly", "fat", "dumbest", "jerk", "moron", "trash"
+    ];
 
-    try {
-      const output = await generator(message, {
-        max_new_tokens: 100,
-        temperature: 0.7,
-        top_k: 50,
-        top_p: 0.9,
-        repetition_penalty: 1.2,
-        stop: ["\n", "</s>"]
+    function sanitizeMeanWords(text) {
+      let result = text;
+      rudeWords.forEach(word => {
+        const regex = new RegExp("\\b" + word + "\\b", "gi");
+        result = result.replace(regex, "[MEOW]");
       });
-      const generated = output[0].generated_text;
-      const reply = generated.slice(message.length).trim();
-      if (!reply) return "Sorry, I didn't quite get that. Can you rephrase?";
-      return reply;
-    } catch (e) {
-      console.error("GPT-2 generation error:", e);
-      return "Sorry, something went wrong with the AI.";
+      return result;
     }
+
+    function filterToxicSentences(text) {
+      const sentences = text.split(/(?<=[.!?])\s+/);
+      const filtered = sentences.map(sentence => {
+        const lower = sentence.toLowerCase();
+        if (rudeWords.some(word => lower.includes(word))) {
+          return "That wasn't very nice, meow!";
+        }
+        return sentence;
+      });
+      return filtered.join(" ");
+    }
+
+    function isWeirdResponse(reply) {
+      return !reply || reply.trim() === "" || /^(\W|[a-zA-Z0-9])\1+$/.test(reply);
+    }
+
+    // Handle special dictionary
+    const lowerMsg = message.trim().toLowerCase();
+    for (const key in extendedDictionary) {
+      if (lowerMsg.includes(key)) return extendedDictionary[key];
+    }
+
+    // Try GPT-2 local generation first
+    if (gptReady) {
+      try {
+        const output = await generator(message, {
+          max_new_tokens: 100,
+          temperature: 0.7,
+          top_k: 50,
+          top_p: 0.9,
+          repetition_penalty: 1.2,
+          stop: ["\n", "</s>"]
+        });
+        let reply = output[0]?.generated_text?.slice(message.length).trim();
+
+        if (isWeirdResponse(reply)) {
+          reply = "Sorry, I didn't quite understand that. Can you try rephrasing?";
+        }
+
+        reply = filterToxicSentences(sanitizeMeanWords(reply));
+        return reply;
+      } catch (e) {
+        console.error('GPT-2 generation error:', e);
+        return "Sorry, something went wrong with the AI.";
+      }
+    }
+
+    return "GPT-2 model is not ready yet.";
   }
 
   async function sendMessage() {
@@ -311,8 +289,34 @@
     sendBtn.disabled = true;
 
     try {
-      const reply = await getReply(txt);
-      appendMessage("PetGPT: " + reply, 'bot');
+      // Check if message is an image generation command
+      if (txt.toLowerCase().startsWith('/image ')) {
+        if (!sdReady) {
+          appendMessage("PetGPT: Sorry, image generation model is still loading.", 'bot');
+        } else {
+          const prompt = txt.substring(7).trim();
+          appendMessage("PetGPT: Generating image for prompt: " + prompt, 'bot');
+          try {
+            const output = await sdPipeline(prompt, {
+              height: 512,
+              width: 512,
+              num_inference_steps: 25,
+              guidance_scale: 7.5,
+            });
+            const blob = await output.image.toBlob('image/png');
+            const url = URL.createObjectURL(blob);
+            // Append image in chat
+            appendMessage(`<strong>Image for:</strong> ${prompt}<br><img src="${url}" alt="Generated image"/>`, 'bot', true);
+          } catch (e) {
+            appendMessage("PetGPT: Sorry, image generation failed.", 'bot');
+            console.error('Image generation error:', e);
+          }
+        }
+      } else {
+        // Normal GPT-2 text reply
+        const reply = await getReply(txt);
+        appendMessage("PetGPT: " + reply, 'bot');
+      }
     } catch (err) {
       appendMessage("PetGPT: Sorry, an error occurred.", 'bot');
       console.error(err);
@@ -331,30 +335,155 @@
     }
   });
 
-  bgPicker.addEventListener('input', e => {
-    document.body.style.background = e.target.value;
-  });
-
-  // --- Admin panel and games code unchanged, omitted here for brevity ---
-  // (You can keep your existing game code as is.)
-
+  // Admin panel unlock logic
   let keyBuffer = "";
   document.addEventListener("keydown", function (e) {
     if (e.key.length === 1) {
       keyBuffer += e.key;
       if (keyBuffer.length > 20) keyBuffer = keyBuffer.slice(-20);
-
       if (keyBuffer.toLowerCase().includes("cheeto")) {
-        if (adminPanel) {
-          adminPanel.style.display = adminPanel.style.display === "block" ? "none" : "block";
-          adminPanel.setAttribute('aria-hidden', adminPanel.style.display === "block" ? "false" : "true");
-        }
+        adminPanel.style.display = adminPanel.style.display === "block" ? "none" : "block";
+        adminPanel.setAttribute('aria-hidden', adminPanel.style.display === "none" ? "true" : "false");
+        appendMessage("Admin panel toggled.", 'bot');
         keyBuffer = "";
       }
     }
   });
 
-  userInput.focus();
+  // Background color picker
+  bgPicker.value = '#1e1e1e';
+  bgPicker.addEventListener('input', e => {
+    document.body.style.background = e.target.value;
+  });
+
+  // Games initialization (from your previous code)
+  let mBoard, mSel = null, mPts = 0, mBest = +localStorage.getItem('m_best') || 0;
+  function genMatch() {
+    const emojis = ['🍎', '🍊', '🍇', '🍒', '🍋', '🍉'];
+    const pool = [];
+    for (let i = 0; i < 36; i++) pool.push(emojis[i % 6]);
+    pool.sort(() => Math.random() - 0.5);
+    mPts = 0;
+    matchGrid.innerHTML = '';
+    mBoard = [];
+    for (let r = 0; r < 6; r++) {
+      mBoard[r] = [];
+      for (let c = 0; c < 6; c++) {
+        const v = pool.pop();
+        const d = document.createElement('div');
+        d.className = 'tile';
+        d.textContent = v;
+        d.onclick = () => swapMatch(r, c, d);
+        matchGrid.appendChild(d);
+        mBoard[r][c] = v;
+      }
+    }
+    updateMatch();
+  }
+  function swapMatch(r, c, d) {
+    if (!mSel) {
+      mSel = { r, c, d };
+      d.classList.add('selected');
+    } else {
+      const { r: r2, c: c2, d: d2 } = mSel;
+      if (Math.abs(r - r2) + Math.abs(c - c2) === 1) {
+        [mBoard[r][c], mBoard[r2][c2]] = [mBoard[r2][c2], mBoard[r][c]];
+        d2.classList.remove('selected');
+        mSel = null;
+        genMatch();
+        mPts += 10;
+        if (mPts > mBest) localStorage.setItem('m_best', mPts);
+        updateMatch();
+      } else {
+        d2.classList.remove('selected');
+        mSel = null;
+      }
+    }
+  }
+  function updateMatch() {
+    mBest = +localStorage.getItem('m_best') || 0;
+    matchScore.textContent = `Score:${mPts} | Best:${mBest}`;
+  }
+
+  let sPts = 0, sBest = +localStorage.getItem('s_best') || 0;
+  function genSol() {
+    solBoard.innerHTML = '';
+    sPts = 0;
+    const suits = ['♠', '♥', '♦', '♣'];
+    const vals = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const deck = [];
+    suits.forEach(s => vals.forEach(v => deck.push({ s, v })));
+    deck.sort(() => Math.random() - 0.5);
+    for (let i = 0; i < 24; i++) {
+      const c = deck[i];
+      const e = document.createElement('div');
+      e.className = 'card' + ((c.s === '♥' || c.s === '♦') ? ' red' : '');
+      e.textContent = c.v + c.s;
+      e.onclick = () => {
+        sPts += 5;
+        if (sPts > sBest) localStorage.setItem('s_best', sPts);
+        updateSol();
+      };
+      solBoard.appendChild(e);
+    }
+    updateSol();
+  }
+  function updateSol() {
+    sBest = +localStorage.getItem('s_best') || 0;
+    solScore.textContent = `Score:${sPts} | Best:${sBest}`;
+  }
+
+  let dPts = 0, dBest = +localStorage.getItem('d_best') || 0;
+  function genDr() {
+    drGrid.innerHTML = '';
+    dPts = 0;
+    const colors = ['🔴', '🟡', '🔵'];
+    const pool = [];
+    for (let i = 0; i < 36; i++) pool.push(colors[i % 3]);
+    pool.sort(() => Math.random() - 0.5);
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) {
+      const v = pool.pop();
+      const e = document.createElement('div');
+      e.className = 'drtile';
+      e.textContent = v;
+      e.onclick = () => {
+        dPts += 15;
+        if (dPts > dBest) localStorage.setItem('d_best', dPts);
+        updateDr();
+      };
+      drGrid.appendChild(e);
+    }
+    updateDr();
+  }
+  function updateDr() {
+    dBest = +localStorage.getItem('d_best') || 0;
+    drScore.textContent = `Score:${dPts} | Best:${dBest}`;
+  }
+  drToggle.onclick = () => {
+    if (drAudio.paused) {
+      drAudio.play();
+      drToggle.textContent = '⏸️ Pause Theme';
+    } else {
+      drAudio.pause();
+      drToggle.textContent = '▶️ Play Theme';
+    }
+  };
+
+  // Background color picker default
+  bgPicker.value = '#1e1e1e';
+
+  // Unlock admin panel if user types "cheeto" exactly (case insensitive)
+  userInput.addEventListener('input', () => {
+    if (userInput.value.trim().toLowerCase() === 'cheeto') {
+      adminPanel.style.display = 'block';
+      adminPanel.setAttribute('aria-hidden', 'false');
+      appendMessage("Admin panel unlocked!", 'bot');
+      genMatch();
+      genSol();
+      genDr();
+    }
+  });
+
 </script>
 
 </body>
