@@ -76,7 +76,7 @@
 <input type="file" id="file" accept="image/*" />
 
 <script type="module">
-  import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers";
+  import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0";
   import { DiffusionPipeline } from "https://cdn.jsdelivr.net/npm/@xenova/diffusers";
 
   const chat = document.getElementById("chat");
@@ -104,13 +104,17 @@
   }
 
   async function loadGPT() {
+    appendMsg("System", "Loading GPT-2...");
     try {
-      gpt = await pipeline("text-generation", "Xenova/gpt2");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      gpt = await pipeline("text-generation", "Xenova/gpt2", { signal: controller.signal });
+      clearTimeout(timeout);
       appendMsg("System", "✅ GPT-2 loaded");
       sendBtn.disabled = false;
     } catch (e) {
-      appendMsg("System", "❌ Failed to load GPT-2");
-      console.error(e);
+      appendMsg("System", "❌ GPT-2 failed to load. Refresh or try later.");
+      console.error("GPT load error:", e);
     }
   }
 
