@@ -1,0 +1,32 @@
+name: Export TinyGPT Weights
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install torch transformers numpy
+
+    - name: Export weights
+      run: python export_weights.py
+
+    - name: Upload weights artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: tinygpt_weights
+        path: tinygpt_weights.npz
